@@ -172,17 +172,16 @@ videorgbOut = pipeline.createXLinkOut()
 videorgbOut.setStreamName('h265_rgb')
 videorgbEncoder.bitstream.link(videorgbOut.input)
 
-'''
+
 # Create an encoder, consuming the frames and encoding them using H.265 encoding
 videodepthEncoder = pipeline.createVideoEncoder()
 videodepthEncoder.setDefaultProfilePreset(depth_width, depth_height, depth_fps, dai.VideoEncoderProperties.Profile.H265_MAIN)
-#depth.depth.link(videodepthEncoder.input)
+depth.disparity.link(videodepthEncoder.input)
 
 # Create output
 videodepthOut = pipeline.createXLinkOut()
 videodepthOut.setStreamName('h265_depth')
 videodepthEncoder.bitstream.link(videodepthOut.input)
-'''
 
 
 
@@ -211,9 +210,7 @@ with dai.Device(pipeline, usb2Mode=force_usb2) as device:
 	q_dep  = device.getOutputQueue(name="disparity",	maxSize=4,	blocking=False)
 	# Output queue will be used to get the encoded data from the output defined above
 	q_265c = device.getOutputQueue(name="h265_rgb",		maxSize=30,	blocking=True)
-	'''
 	q_265d = device.getOutputQueue(name="h265_depth",	maxSize=30,	blocking=True)
-	'''
 
 	cmap_counter = 0
 
@@ -231,19 +228,20 @@ with dai.Device(pipeline, usb2Mode=force_usb2) as device:
 				if debug_pipeline_steps:
 					print('3.')
 				in_h265c = q_265c.get()	# blocking call, will wait until a new data has arrived
-				print('4.')
-				'''
+				if debug_pipeline_steps:
+					print('4.')
 				in_h265d = q_265d.get()	# blocking call, will wait until a new data has arrived
+				if debug_pipeline_steps:
+					print('5.')
 
+				'''
 				if debug_img_sizes:
 					print(f'{type(in_h265c)} - {len(in_h265c)}')
 					print(f'{type(in_h265d)} - {len(in_h265d)}')
 				'''
 
 				in_h265c.getData().tofile(videorgbFile)		# appends the packet data to the opened file
-				'''
 				in_h265d.getData().tofile(videodepthFile)	# appends the packet data to the opened file
-				'''
 		
 				# data is originally represented as a flat 1D array, it needs to be converted into HxW form
 				depth_h, depth_w = in_depth.getHeight(), in_depth.getWidth()
