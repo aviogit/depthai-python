@@ -47,6 +47,9 @@ xout = pipeline.createXLinkOut()
 xout.setStreamName("disparity")
 depth.disparity.link(xout.input)
 
+cv2.namedWindow('disparity',cv2.WINDOW_NORMAL)
+cv2.resizeWindow('disparity', 1280, 720)
+
 # Pipeline defined, now the device is connected to
 with dai.Device(pipeline) as device:
     # Start pipeline
