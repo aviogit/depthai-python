@@ -15,6 +15,11 @@ debug_pipeline_steps	= False
 
 show_preview		= False
 
+curr_time		= datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+
+color_outfn		= f'color-{curr_time}.h265'
+depth_outfn		= f'depth-{curr_time}.h265'
+
 def apply_colormap(frame, cmap=0):
 	if cmap == 0 or cmap > 21:
 		return cv2.applyColorMap(frame, cv2.COLORMAP_JET)
@@ -219,7 +224,7 @@ with dai.Device(pipeline, usb2Mode=force_usb2) as device:
 	cmap_counter = 0
 
 	# The .h265 file is a raw stream file (not playable yet)
-	with open('color.h265','wb') as videorgbFile, open('depth.h265','wb') as videodepthFile:
+	with open(color_outfn,'wb') as videorgbFile, open(depth_outfn,'wb') as videodepthFile:
 		print("Press Ctrl+C to stop encoding...")
 		try:
 			while True:
