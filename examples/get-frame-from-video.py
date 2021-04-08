@@ -8,9 +8,18 @@ from datetime import datetime
 
 from random import randrange
 
+import argparse
 
-color_video_fname = 'color-2021-04-08-16-26-06.h265-60fps.mp4'
-depth_video_fname = 'depth-2021-04-08-16-26-06.h265-120fps.mp4'
+parser = argparse.ArgumentParser(description='Extract a color/disparity pair from two (hopefully synchronized) color/depth video files.')
+parser.add_argument('--color-video-filename', nargs='?', default='color.h265')
+parser.add_argument('--depth-video-filename', nargs='?', default='depth.h265')
+
+args = parser.parse_args()
+
+color_video_fname = args.color_video_filename
+depth_video_fname = args.depth_video_filename
+#color_video_fname = 'color-2021-04-08-16-26-06.h265-60fps.mp4'
+#depth_video_fname = 'depth-2021-04-08-16-26-06.h265-120fps.mp4'
 #color_video_fname = 'color-2021-04-08-16-26-06.h265'
 #depth_video_fname = 'depth-2021-04-08-16-26-06.h265'
 
@@ -27,6 +36,10 @@ def get_frame_no(video_fname, frame_number):
 
 color_num_frames  = get_num_frames(color_video_fname)
 print(f'{color_num_frames = }')
+if color_num_frames <= 0:
+	print(f'Error retrieving the number of frames in color video file: {color_video_fname}')
+	sys.exit(0)
+
 random_frame_no   = randrange(color_num_frames)
 print(f'{color_num_frames = } - {random_frame_no = }')
 cres, color_frame = get_frame_no(color_video_fname, random_frame_no)
