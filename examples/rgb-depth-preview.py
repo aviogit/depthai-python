@@ -13,6 +13,8 @@ debug_img_sizes		= True
 debug_pipeline_types	= False
 debug_pipeline_steps	= False
 
+show_preview		= False
+
 def apply_colormap(frame, cmap=0):
 	if cmap == 0 or cmap > 21:
 		return cv2.applyColorMap(frame, cv2.COLORMAP_JET)
@@ -139,24 +141,25 @@ right.out.link(depth.right)
 
 
 
-# Create output
-xout_rgb = pipeline.createXLinkOut()
-xout_dep = pipeline.createXLinkOut()
-xout_rgb.setStreamName("rgb")
-xout_dep.setStreamName("disparity")
-
-if debug_pipeline_types:
-	print(f'{type(cam_rgb) = } - {cam_rgb = }')
-	print(f'{type(cam_rgb.video) = } - {cam_rgb.video = }')
-	print(f'{type(cam_rgb.preview) = } - {cam_rgb.preview = }')
-	print(f'{type(depth) = } - {depth = }')
-	print(f'{type(depth.disparity) = } - {depth.disparity = }')
-
-cam_rgb.preview.link(xout_rgb.input)
-depth.disparity.link(xout_dep.input)
-
-cam_rgb.video.link(xout_rgb.input)
-#depth.video.link(xout_dep.input)
+if show_preview:
+	# Create output
+	xout_rgb = pipeline.createXLinkOut()
+	xout_dep = pipeline.createXLinkOut()
+	xout_rgb.setStreamName("rgb")
+	xout_dep.setStreamName("disparity")
+	
+	if debug_pipeline_types:
+		print(f'{type(cam_rgb) = } - {cam_rgb = }')
+		print(f'{type(cam_rgb.video) = } - {cam_rgb.video = }')
+		print(f'{type(cam_rgb.preview) = } - {cam_rgb.preview = }')
+		print(f'{type(depth) = } - {depth = }')
+		print(f'{type(depth.disparity) = } - {depth.disparity = }')
+	
+	cam_rgb.preview.link(xout_rgb.input)
+	depth.disparity.link(xout_dep.input)
+	
+	cam_rgb.video.link(xout_rgb.input)
+	#depth.video.link(xout_dep.input)
 
 
 
@@ -185,18 +188,18 @@ videodepthEncoder.bitstream.link(videodepthOut.input)
 
 
 
+if show_preview:
+	cv2.namedWindow('disparity',cv2.WINDOW_NORMAL)
+	cv2.resizeWindow('disparity', int(color_width/2), int(color_height/2))
 
-cv2.namedWindow('disparity',cv2.WINDOW_NORMAL)
-cv2.resizeWindow('disparity', int(color_width/2), int(color_height/2))
+	cv2.namedWindow('disparity th',cv2.WINDOW_NORMAL)
+	cv2.resizeWindow('disparity th', int(color_width/2), int(color_height/2))
 
-cv2.namedWindow('disparity th',cv2.WINDOW_NORMAL)
-cv2.resizeWindow('disparity th', int(color_width/2), int(color_height/2))
+	cv2.namedWindow('rgb',cv2.WINDOW_NORMAL)
+	cv2.resizeWindow('rgb', int(color_width/2), int(color_height/2))
 
-cv2.namedWindow('rgb',cv2.WINDOW_NORMAL)
-cv2.resizeWindow('rgb', int(color_width/2), int(color_height/2))
-
-cv2.namedWindow('combo',cv2.WINDOW_NORMAL)
-cv2.resizeWindow('combo', int(color_width/2), int(color_height/2))
+	cv2.namedWindow('combo',cv2.WINDOW_NORMAL)
+	cv2.resizeWindow('combo', int(color_width/2), int(color_height/2))
 
 
 
@@ -205,9 +208,10 @@ with dai.Device(pipeline, usb2Mode=force_usb2) as device:
 	# Start pipeline
 	device.startPipeline()
 
-	# Output queue will be used to get the rgb frames from the output defined above
-	q_rgb  = device.getOutputQueue(name="rgb",		maxSize=4,	blocking=False)
-	q_dep  = device.getOutputQueue(name="disparity",	maxSize=4,	blocking=False)
+	if show_preview:
+		# Output queue will be used to get the rgb frames from the output defined above
+		q_rgb  = device.getOutputQueue(name="rgb",		maxSize=4,	blocking=False)
+		q_dep  = device.getOutputQueue(name="disparity",	maxSize=4,	blocking=False)
 	# Output queue will be used to get the encoded data from the output defined above
 	q_265c = device.getOutputQueue(name="h265_rgb",		maxSize=30,	blocking=True)
 	q_265d = device.getOutputQueue(name="h265_depth",	maxSize=30,	blocking=True)
@@ -219,12 +223,13 @@ with dai.Device(pipeline, usb2Mode=force_usb2) as device:
 		print("Press Ctrl+C to stop encoding...")
 		try:
 			while True:
-				if debug_pipeline_steps:
-					print('1.')
-				in_rgb   = q_rgb.get()	# blocking call, will wait until a new data has arrived
-				if debug_pipeline_steps:
-					print('2.')
-				in_depth = q_dep.get()	# blocking call, will wait until a new data has arrived
+				if show_preview:
+					if debug_pipeline_steps:
+						print('1.')
+					in_rgb   = q_rgb.get()	# blocking call, will wait until a new data has arrived
+					if debug_pipeline_steps:
+						print('2.')
+					in_depth = q_dep.get()	# blocking call, will wait until a new data has arrived
 				if debug_pipeline_steps:
 					print('3.')
 				in_h265c = q_265c.get()	# blocking call, will wait until a new data has arrived
@@ -242,38 +247,39 @@ with dai.Device(pipeline, usb2Mode=force_usb2) as device:
 
 				in_h265c.getData().tofile(videorgbFile)		# appends the packet data to the opened file
 				in_h265d.getData().tofile(videodepthFile)	# appends the packet data to the opened file
-		
-				# data is originally represented as a flat 1D array, it needs to be converted into HxW form
-				depth_h, depth_w = in_depth.getHeight(), in_depth.getWidth()
-				if debug_img_sizes:
-					print(f'{depth_h = } - {depth_w = }')
-				depth_frame = in_depth.getData().reshape((depth_h, depth_w)).astype(np.uint8)
-				if debug_img_sizes:
-					print(f'{depth_frame.shape = } - {len(depth_frame) = } - {type(depth_frame) = } - {depth_frame.size = }')
-				depth_frame_orig = cv2.normalize(depth_frame, None, 0, 255, cv2.NORM_MINMAX)
-				depth_frame = np.ascontiguousarray(depth_frame_orig)
-				# depth_frame is transformed, the color map will be applied to highlight the depth info
-				depth_frame = apply_colormap(depth_frame, cmap=13)
-				# depth_frame is ready to be shown
-				cv2.imshow("disparity", depth_frame)
-		
-				# Retrieve 'bgr' (opencv format) frame
-				rgb_frame = in_rgb.getCvFrame()
-				if debug_img_sizes:
-					print(f'{rgb_frame.shape = } - {len(rgb_frame) = } - {type(rgb_frame) = } - {rgb_frame.size = }')
-				cv2.imshow("rgb", rgb_frame)
 
-				#img_grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-				depth_frame_th = cv2.adaptiveThreshold(depth_frame_orig, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
-				cv2.imshow("disparity th", depth_frame_th)
-				depth_frame_th_color = cv2.cvtColor(depth_frame_th, cv2.COLOR_GRAY2BGR)
-
-				rgb_frame_resized = cv2.resize(rgb_frame, dsize=(depth_w, depth_h), interpolation=cv2.INTER_CUBIC)
-				combo = (rgb_frame_resized + depth_frame_th_color) / 2
-				cv2.imshow("combo", combo)
-		
-				if cv2.waitKey(1) == ord('q'):
-					break
+				if show_preview:
+					# data is originally represented as a flat 1D array, it needs to be converted into HxW form
+					depth_h, depth_w = in_depth.getHeight(), in_depth.getWidth()
+					if debug_img_sizes:
+						print(f'{depth_h = } - {depth_w = }')
+					depth_frame = in_depth.getData().reshape((depth_h, depth_w)).astype(np.uint8)
+					if debug_img_sizes:
+						print(f'{depth_frame.shape = } - {len(depth_frame) = } - {type(depth_frame) = } - {depth_frame.size = }')
+					depth_frame_orig = cv2.normalize(depth_frame, None, 0, 255, cv2.NORM_MINMAX)
+					depth_frame = np.ascontiguousarray(depth_frame_orig)
+					# depth_frame is transformed, the color map will be applied to highlight the depth info
+					depth_frame = apply_colormap(depth_frame, cmap=13)
+					# depth_frame is ready to be shown
+					cv2.imshow("disparity", depth_frame)
+			
+					# Retrieve 'bgr' (opencv format) frame
+					rgb_frame = in_rgb.getCvFrame()
+					if debug_img_sizes:
+						print(f'{rgb_frame.shape = } - {len(rgb_frame) = } - {type(rgb_frame) = } - {rgb_frame.size = }')
+					cv2.imshow("rgb", rgb_frame)
+	
+					#img_grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+					depth_frame_th = cv2.adaptiveThreshold(depth_frame_orig, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+					cv2.imshow("disparity th", depth_frame_th)
+					depth_frame_th_color = cv2.cvtColor(depth_frame_th, cv2.COLOR_GRAY2BGR)
+	
+					rgb_frame_resized = cv2.resize(rgb_frame, dsize=(depth_w, depth_h), interpolation=cv2.INTER_CUBIC)
+					combo = (rgb_frame_resized + depth_frame_th_color) / 2
+					cv2.imshow("combo", combo)
+			
+					if cv2.waitKey(1) == ord('q'):
+						break
 
 				cmap_counter += 1
 
@@ -315,7 +321,7 @@ xout_jpeg.setStreamName("jpeg")
 video_enc.bitstream.link(xout_jpeg.input)
 '''
 
-
+'''
 # Pipeline defined, now the device is connected to
 with dai.Device(pipeline) as device:
     # Start pipeline
@@ -344,7 +350,7 @@ with dai.Device(pipeline) as device:
 
         if cv2.waitKey(1) == ord('q'):
             break
-
+'''
 
 
 
