@@ -11,8 +11,10 @@ from random import randrange
 import argparse
 
 parser = argparse.ArgumentParser(description='Extract a color/disparity pair from two (hopefully synchronized) color/depth video files.')
-parser.add_argument('--color-video-filename', nargs='?', default='color.h265')
-parser.add_argument('--depth-video-filename', nargs='?', default='depth.h265')
+parser.add_argument('--color-video-filename',	nargs='?', default='color.h265')
+parser.add_argument('--depth-video-filename',	nargs='?', default='depth.h265')
+parser.add_argument('--start-frame',		default=0, type=int, help='start frame for the random interval')
+parser.add_argument('--end-frame',		default=0, type=int, help='end frame for the random interval')
 
 args = parser.parse_args()
 
@@ -47,8 +49,11 @@ if color_num_frames <= 0:
 	print(f'Error retrieving the number of frames in color video file: {color_video_fname}')
 	sys.exit(0)
 
+start_frame = args.start_frame if args.start_frame else 0
+end_frame   = args.end_frame if args.end_frame else color_num_frames
+
 while True:
-	random_frame_no   = randrange(color_num_frames)
+	random_frame_no   = randrange(start_frame, end_frame)
 	print(f'{color_num_frames = } - {random_frame_no = }')
 
 	cres, color_frame = get_frame_no(color_cap, random_frame_no)
