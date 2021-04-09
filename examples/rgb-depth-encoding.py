@@ -9,18 +9,14 @@ from pathlib import Path
 
 from datetime import datetime
 
-force_usb2		= False
+from argument_parser import argument_parser
 
-debug_img_sizes		= True
-debug_pipeline_types	= False
-debug_pipeline_steps	= False
+args = argument_parser()
 
-show_preview		= False
+start_time	= datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 
-start_time		= datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-
-color_outfn		= f'color-{start_time}.h265'
-depth_outfn		= f'depth-{start_time}.h265'
+color_outfn	= f'{args.output_dir}/color-{start_time}.h265'
+depth_outfn	= f'{args.output_dir}/depth-{start_time}.h265'
 
 def apply_colormap(frame, cmap=0):
 	if cmap == 0 or cmap > 21:
@@ -148,14 +144,14 @@ right.out.link(depth.right)
 
 
 
-if show_preview:
+if args.show_preview:
 	# Create output
 	xout_rgb = pipeline.createXLinkOut()
 	xout_dep = pipeline.createXLinkOut()
 	xout_rgb.setStreamName("rgb")
 	xout_dep.setStreamName("disparity")
 	
-	if debug_pipeline_types:
+	if args.debug_pipeline_types:
 		print(f'{type(cam_rgb) = } - {cam_rgb = }')
 		print(f'{type(cam_rgb.video) = } - {cam_rgb.video = }')
 		print(f'{type(cam_rgb.preview) = } - {cam_rgb.preview = }')
@@ -193,7 +189,7 @@ videodepthEncoder.bitstream.link(videodepthOut.input)
 
 
 
-if show_preview:
+if args.show_preview:
 	cv2.namedWindow('disparity',cv2.WINDOW_NORMAL)
 	cv2.resizeWindow('disparity', int(color_width/2), int(color_height/2))
 
@@ -209,11 +205,11 @@ if show_preview:
 last_time = start_time
 
 # Pipeline defined, now the device is connected to
-with dai.Device(pipeline, usb2Mode=force_usb2) as device:
+with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 	# Start pipeline
 	device.startPipeline()
 
-	if show_preview:
+	if args.show_preview:
 		# Output queue will be used to get the rgb frames from the output defined above
 		q_rgb  = device.getOutputQueue(name="rgb",	maxSize=4,	blocking=False)
 		q_dep  = device.getOutputQueue(name="disparity",maxSize=4,	blocking=False)
@@ -228,24 +224,24 @@ with dai.Device(pipeline, usb2Mode=force_usb2) as device:
 		print("Press Ctrl+C to stop encoding...")
 		try:
 			while True:
-				if show_preview:
-					if debug_pipeline_steps:
+				if args.show_preview:
+					if args.debug_pipeline_steps:
 						print('1.')
 					in_rgb   = q_rgb.get()	# blocking call, will wait until a new data has arrived
-					if debug_pipeline_steps:
+					if args.debug_pipeline_steps:
 						print('2.')
 					in_depth = q_dep.get()	# blocking call, will wait until a new data has arrived
-				if debug_pipeline_steps:
+				if args.debug_pipeline_steps:
 					print('3.')
 				in_h265c = q_265c.get()		# blocking call, will wait until a new data has arrived
-				if debug_pipeline_steps:
+				if args.debug_pipeline_steps:
 					print('4.')
 				in_h265d = q_265d.get()		# blocking call, will wait until a new data has arrived
-				if debug_pipeline_steps:
+				if args.debug_pipeline_steps:
 					print('5.')
 
 				'''
-				if debug_img_sizes:
+				if args.debug_img_sizes:
 					print(f'{type(in_h265c)} - {len(in_h265c)}')
 					print(f'{type(in_h265d)} - {len(in_h265d)}')
 				'''
@@ -258,13 +254,13 @@ with dai.Device(pipeline, usb2Mode=force_usb2) as device:
 					print(f'{curr_time = }')
 					last_time = curr_time
 
-				if show_preview:
+				if args.show_preview:
 					# data is originally represented as a flat 1D array, it needs to be converted into HxW form
 					depth_h, depth_w = in_depth.getHeight(), in_depth.getWidth()
-					if debug_img_sizes:
+					if args.debug_img_sizes:
 						print(f'{depth_h = } - {depth_w = }')
 					depth_frame = in_depth.getData().reshape((depth_h, depth_w)).astype(np.uint8)
-					if debug_img_sizes:
+					if args.debug_img_sizes:
 						print(f'{depth_frame.shape = } - {len(depth_frame) = } - {type(depth_frame) = } - {depth_frame.size = }')
 					depth_frame_orig = cv2.normalize(depth_frame, None, 0, 255, cv2.NORM_MINMAX)
 					depth_frame = np.ascontiguousarray(depth_frame_orig)
@@ -275,7 +271,7 @@ with dai.Device(pipeline, usb2Mode=force_usb2) as device:
 			
 					# Retrieve 'bgr' (opencv format) frame
 					rgb_frame = in_rgb.getCvFrame()
-					if debug_img_sizes:
+					if args.debug_img_sizes:
 						print(f'{rgb_frame.shape = } - {len(rgb_frame) = } - {type(rgb_frame) = } - {rgb_frame.size = }')
 					cv2.imshow("rgb", rgb_frame)
 	
