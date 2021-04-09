@@ -17,10 +17,10 @@ debug_pipeline_steps	= False
 
 show_preview		= False
 
-curr_time		= datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+start_time		= datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 
-color_outfn		= f'color-{curr_time}.h265'
-depth_outfn		= f'depth-{curr_time}.h265'
+color_outfn		= f'color-{start_time}.h265'
+depth_outfn		= f'depth-{start_time}.h265'
 
 def apply_colormap(frame, cmap=0):
 	if cmap == 0 or cmap > 21:
@@ -206,7 +206,7 @@ if show_preview:
 	cv2.namedWindow('combo',cv2.WINDOW_NORMAL)
 	cv2.resizeWindow('combo', int(color_width/2), int(color_height/2))
 
-
+last_time = start_time
 
 # Pipeline defined, now the device is connected to
 with dai.Device(pipeline, usb2Mode=force_usb2) as device:
@@ -252,6 +252,11 @@ with dai.Device(pipeline, usb2Mode=force_usb2) as device:
 
 				in_h265c.getData().tofile(videorgbFile)		# appends the packet data to the opened file
 				in_h265d.getData().tofile(videodepthFile)	# appends the packet data to the opened file
+
+				curr_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+				if curr_time != last_time:
+					print(f'{curr_time = }')
+					last_time = curr_time
 
 				if show_preview:
 					# data is originally represented as a flat 1D array, it needs to be converted into HxW form
