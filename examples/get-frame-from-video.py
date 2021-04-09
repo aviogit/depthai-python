@@ -10,16 +10,19 @@ from random import randrange
 
 import argparse
 
+from colormaps import apply_colormap
+
 parser = argparse.ArgumentParser(description='Extract a color/disparity pair from two (hopefully synchronized) color/depth video files.')
-parser.add_argument('--color-video-filename',	nargs='?', default='color.h265')
-parser.add_argument('--depth-video-filename',	nargs='?', default='depth.h265')
+parser.add_argument('filenames',		nargs=2)
+#parser.add_argument('--color-video-filename',	nargs='?', default='color.h265')
+#parser.add_argument('--depth-video-filename',	nargs='?', default='depth.h265')
 parser.add_argument('--start-frame',		default=0, type=int, help='start frame for the random interval')
 parser.add_argument('--end-frame',		default=0, type=int, help='end frame for the random interval')
 
 args = parser.parse_args()
 
-color_video_fname = args.color_video_filename
-depth_video_fname = args.depth_video_filename
+color_video_fname = args.filenames[0]
+depth_video_fname = args.filenames[1]
 #color_video_fname = 'color-2021-04-08-16-26-06.h265-60fps.mp4'
 #depth_video_fname = 'depth-2021-04-08-16-26-06.h265-120fps.mp4'
 #color_video_fname = 'color-2021-04-08-16-26-06.h265'
@@ -28,6 +31,7 @@ depth_video_fname = args.depth_video_filename
 color_cap = depth_cap = None
 
 def get_num_frames(video_fname):
+	print(video_fname)
 	cap = cv2.VideoCapture(video_fname)
 	num_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
 	return cap, num_frames
@@ -61,6 +65,8 @@ while True:
 	
 	cres, depth_frame = get_frame_no(depth_cap, random_frame_no)
 	print(f'{cres = } - {depth_frame.shape = }')
+
+	depth_frame = apply_colormap(depth_frame, cmap=0)	# 13 is cool but it's too dark
 	
 	color_width, color_height, color_ch = color_frame.shape
 	depth_width, depth_height, depth_ch = depth_frame.shape
