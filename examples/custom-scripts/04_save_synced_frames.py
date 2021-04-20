@@ -2,8 +2,8 @@
 import argparse
 import numpy as np
 from pathlib import Path
-from time import monotonic
-from uuid import uuid4
+from time import monotonic, strftime
+from datetime import datetime
 from multiprocessing import Process, Queue
 import cv2
 import depthai as dai
@@ -23,7 +23,7 @@ def check_range(min_val, max_val):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-t', '--threshold', default=0.3, type=float, help="Maximum difference between packet timestamps to be considered as synced")
-parser.add_argument("-sp", "--savepath", default='/home/pi/collected_depth/', help="output path for depth data")
+parser.add_argument("-sp", "--savepath", default='/mnt/btrfs-data/04-save-synced-frames/', help="output path for depth data")
 # parser.add_argument("-n", "--numframes", default=5, help="Number of frames to be saved")
 parser.add_argument('-d', '--dirty', action='store_true', default=False, help="Allow the destination path not to be empty")
 parser.add_argument('-nd', '--no-debug', dest="prod", action='store_true', default=False, help="Do not display debug output")
@@ -35,6 +35,10 @@ parser.add_argument('-af', '--autofocus', type=str, default=None, help="Set Auto
 parser.add_argument("-c","--usecalibration", default=False, help="Use calibrated parameters for 3A for both cameras")
 parser.add_argument("-mc", "--calibrationfilemono", default='/home/pi/mono_calib.npz')
 parser.add_argument("-rc", "--calibrationfilergb", default='/home/pi/RGB_calib.npz')
+parser.add_argument('-r',   '--rectified', dest="rectified", action='store_true', default=False, help="Output and display rectified streams")
+parser.add_argument('-lrc', '--lrcheck',   dest="lrcheck",   action='store_true', default=False, help="Better handling for occlusions")
+parser.add_argument('-ext', '--extended',  dest="extended",  action='store_true', default=False, help="Closer-in minimum depth, disparity range is doubled")
+parser.add_argument('-sub', '--subpixel',  dest="subpixel",  action='store_true', default=False, help="Better accuracy for longer distance, fractional disparity 32-levels")
 args = parser.parse_args()
 
 focus_mode=args.autofocus
@@ -53,12 +57,12 @@ if use_calibration:
     #whitebalance=calib_color['awbMode']
 
 # Depth parameters
-out_rectified  = True   # Output and display rectified streams
-lrcheck  = True   # Better handling for occlusions
-extended = False  # Closer-in minimum depth, disparity range is doubled
-subpixel = True   # Better accuracy for longer distance, fractional disparity 32-levels
+rectified = args.rectified # Output and display rectified streams
+lrcheck   = args.lrcheck   # Better handling for occlusions
+extended  = args.extended  # Closer-in minimum depth, disparity range is doubled
+subpixel  = args.subpixel  # Better accuracy for longer distance, fractional disparity 32-levels
 # Options: MEDIAN_OFF, KERNEL_3x3, KERNEL_5x5, KERNEL_7x7
-median   = dai.StereoDepthProperties.MedianFilter.KERNEL_7x7
+median    = dai.StereoDepthProperties.MedianFilter.KERNEL_7x7
 
 # Camera parameters
 right_intrinsic = [[860.0, 0.0, 640.0], [0.0, 860.0, 360.0], [0.0, 0.0, 1.0]]
@@ -231,7 +235,9 @@ def store_frames(in_q):
         frames_dict = in_q.get()
         if frames_dict is None:
             return
-        frames_path = dest / Path(str(uuid4()))
+        #frames_path = dest / Path(str(uuid4()))
+        timestamp_str = datetime.now().strftime("%Y%m%d-%H%M%S.%f")
+        frames_path   = dest / Path(str(timestamp_str))
         frames_path.mkdir(parents=False, exist_ok=False)
         for stream_name, item in frames_dict.items():
             if stream_name == "depth":
@@ -268,8 +274,9 @@ with dai.Device(pipeline) as device:
     ctrl = dai.CameraControl()
 
     start_ts = monotonic()
-    for queueName in PairingSystem.seq_streams + PairingSystem.ts_streams:
-        cv2.namedWindow(queueName, cv2.WINDOW_NORMAL)
+    if not args.prod:
+        for queueName in PairingSystem.seq_streams + PairingSystem.ts_streams:
+            cv2.namedWindow(queueName, cv2.WINDOW_NORMAL)
     while True:
         for queueName in PairingSystem.seq_streams + PairingSystem.ts_streams:
             ps.add_packets(device.getOutputQueue(queueName).tryGetAll(), queueName)
