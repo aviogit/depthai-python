@@ -34,7 +34,13 @@ parser.add_argument('-mf', '--manualfocus', type=check_range(0, 255), help="Set 
 parser.add_argument('-et', '--exposure-time', type=check_range(1, 33000), help="Set manual exposure time of the RGB camera [1..33000]")
 parser.add_argument('-ei', '--exposure-iso', type=check_range(100, 1600), help="Set manual exposure ISO of the RGB camera [100..1600]")
 parser.add_argument('-enc', '--encode', action="store_true", help="Encode the mono/color/depth output using H.264/H.265 encoding")
+parser.add_argument('-ext', '--extended',  dest="extended",  action='store_true', default=False, help="Closer-in minimum depth, disparity range is doubled")
 args = parser.parse_args()
+
+'''
+if (extended):
+    max_disp *= 2
+'''
 
 exposure = [args.exposure_time, args.exposure_iso]
 if any(exposure) and not all(exposure):
@@ -59,19 +65,25 @@ rgb.setInterleaved(False)
 rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.RGB)
 
 left = pipeline.createMonoCamera()
-left.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
+#left.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
+left.setResolution(dai.MonoCameraProperties.SensorResolution.THE_720_P)
 left.setBoardSocket(dai.CameraBoardSocket.LEFT)
 
 right = pipeline.createMonoCamera()
-right.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
+#right.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
+right.setResolution(dai.MonoCameraProperties.SensorResolution.THE_720_P)
 right.setBoardSocket(dai.CameraBoardSocket.RIGHT)
+
+#mono_w, mono_h = 640, 400
+mono_w, mono_h = 1280, 720
 
 depth = pipeline.createStereoDepth()
 depth.setConfidenceThreshold(255)
 median = dai.StereoDepthProperties.MedianFilter.KERNEL_7x7
 depth.setMedianFilter(median)
 depth.setLeftRightCheck(False)
-depth.setExtendedDisparity(False)
+#depth.setExtendedDisparity(False)
+depth.setExtendedDisparity(args.extended)
 depth.setSubpixel(False)
 
 left.out.link(depth.left)
@@ -98,7 +110,8 @@ depth.disparity.link(depthOut.input)
 if args.encode:
     # Create encoders, one for each camera, consuming the frames and encoding them using H.264 / H.265 encoding
     veL = pipeline.createVideoEncoder()
-    veL.setDefaultProfilePreset(640, 400, 30, dai.VideoEncoderProperties.Profile.H264_MAIN)
+    #veL.setDefaultProfilePreset(640, 400, 30, dai.VideoEncoderProperties.Profile.H264_MAIN)
+    veL.setDefaultProfilePreset(mono_w, mono_h, 30, dai.VideoEncoderProperties.Profile.H264_MAIN)
     left.out.link(veL.input)
 
     veC = pipeline.createVideoEncoder()
@@ -106,14 +119,16 @@ if args.encode:
     rgb.video.link(veC.input)
 
     veR = pipeline.createVideoEncoder()
-    veR.setDefaultProfilePreset(640, 400, 30, dai.VideoEncoderProperties.Profile.H264_MAIN)
+    #veR.setDefaultProfilePreset(640, 400, 30, dai.VideoEncoderProperties.Profile.H264_MAIN)
+    veR.setDefaultProfilePreset(mono_w, mono_h, 30, dai.VideoEncoderProperties.Profile.H264_MAIN)
     right.out.link(veR.input)
 
     veDIn = pipeline.createXLinkIn()
     veDIn.setStreamName('ve_disparity_in')
 
     veD = pipeline.createVideoEncoder()
-    veD.setDefaultProfilePreset(640, 400, 30, dai.VideoEncoderProperties.Profile.H264_MAIN)
+    #veD.setDefaultProfilePreset(640, 400, 30, dai.VideoEncoderProperties.Profile.H264_MAIN)
+    veD.setDefaultProfilePreset(mono_w, mono_h, 30, dai.VideoEncoderProperties.Profile.H264_MAIN)
     veDIn.out.link(veD.input)
 
     # Create outputs
@@ -308,10 +323,13 @@ with dai.Device(pipeline) as device:
             if packets and queueName == "disparity":
                 for packet in packets:
                     img = dai.ImgFrame()
-                    img.setData(to_planar(extract_frame[queueName](packet), (640, 400)))
+                    #img.setData(to_planar(extract_frame[queueName](packet), (640, 400)))
+                    img.setData(to_planar(extract_frame[queueName](packet), (mono_w, mono_h)))
                     img.setTimestamp(monotonic())
-                    img.setWidth(640)
-                    img.setHeight(400)
+                    #img.setWidth(640)
+                    img.setWidth(mono_w)
+                    #img.setHeight(400)
+                    img.setHeight(mono_h)
                     #ve_disparity_in.send(img)
             ps.add_packets(packets, queueName)
 
@@ -320,7 +338,10 @@ with dai.Device(pipeline) as device:
             extracted_pair = {stream_name: extract_frame[stream_name](item) for stream_name, item in pair.items()}
             if not args.prod:
                 for stream_name, item in extracted_pair.items():
-                    image = item if 'color' not in stream_name else cv2.resize(image, (640,480)) 
+                    if False:	# args.resize?
+                        image = item if 'color' not in stream_name else cv2.resize(image, (640,480))
+                    else:
+                        image = item
                     cv2.imshow(stream_name, image)
             frame_q.put(extracted_pair)
 
