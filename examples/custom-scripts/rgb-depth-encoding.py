@@ -19,6 +19,8 @@ start_time	= datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 
 color_outfn	= f'{args.output_dir}/color-{start_time}.h265'
 depth_outfn	= f'{args.output_dir}/depth-{start_time}.h265'
+left_outfn	= f'{args.output_dir}/left-{start_time}.h265'
+right_outfn	= f'{args.output_dir}/right-{start_time}.h265'
 
 
 
@@ -39,7 +41,7 @@ depth_resolutions = {
 
 
 color_width, color_height, color_fps, color_profile	= color_resolutions['1080p']
-depth_width, depth_height, depth_fps, dprofile		= depth_resolutions['400p']
+depth_width, depth_height, depth_fps, dprofile		= depth_resolutions['720p']
 
 # Define a source - color camera
 cam_rgb = pipeline.createColorCamera()
@@ -122,10 +124,31 @@ if args.show_preview:
 	#depth.video.link(xout_dep.input)
 
 
+def create_encoder(source, profile_tuple, stream_name):
+	# Create an encoder, consuming the frames and encoding them using H.265 encoding
+	encoder = pipeline.createVideoEncoder()
+	w, h, fps, resolution = profile_tuple
+	codec = dai.VideoEncoderProperties.Profile.H265_MAIN if '265' in stream_name else dai.VideoEncoderProperties.Profile.H264_MAIN
+	encoder.setDefaultProfilePreset(w, h, fps, codec)
+	source.link(encoder.input)
+
+	# Create output
+	output = pipeline.createXLinkOut()
+	output.setStreamName(stream_name)
+	encoder.bitstream.link(output.input)
+
+	return encoder, output
+
+
+videorgbEncoder,   videorgbOut   = create_encoder(cam_rgb.video,     color_resolutions['1080p'], 'h265_rgb')
+#videodispEncoder,  videodispOut  = create_encoder(depth.disparity,   depth_resolutions['720p'],  'h265_depth')
+videoleftEncoder,  videoleftOut  = create_encoder(depth.syncedLeft,  depth_resolutions['720p'],  'h265_left')
+videorightEncoder, videorightOut = create_encoder(depth.syncedRight, depth_resolutions['720p'],  'h265_right')
+
+'''
 # Create an encoder, consuming the frames and encoding them using H.265 encoding
 videorgbEncoder = pipeline.createVideoEncoder()
 videorgbEncoder.setDefaultProfilePreset(color_width, color_height, color_fps, dai.VideoEncoderProperties.Profile.H265_MAIN)
-#videorgbEncoder.setDefaultProfilePreset(3840, 2160, 30, dai.VideoEncoderProperties.Profile.H265_MAIN)
 cam_rgb.video.link(videorgbEncoder.input)
 
 # Create output
@@ -135,14 +158,15 @@ videorgbEncoder.bitstream.link(videorgbOut.input)
 
 
 # Create an encoder, consuming the frames and encoding them using H.265 encoding
-videodepthEncoder = pipeline.createVideoEncoder()
-videodepthEncoder.setDefaultProfilePreset(depth_width, depth_height, depth_fps, dai.VideoEncoderProperties.Profile.H265_MAIN)
-depth.disparity.link(videodepthEncoder.input)
+videodispEncoder = pipeline.createVideoEncoder()
+videodispEncoder.setDefaultProfilePreset(depth_width, depth_height, depth_fps, dai.VideoEncoderProperties.Profile.H265_MAIN)
+depth.disparity.link(videodispEncoder.input)
 
 # Create output
-videodepthOut = pipeline.createXLinkOut()
-videodepthOut.setStreamName('h265_depth')
-videodepthEncoder.bitstream.link(videodepthOut.input)
+videodispOut = pipeline.createXLinkOut()
+videodispOut.setStreamName('h265_depth')
+videodispEncoder.bitstream.link(videodispOut.input)
+'''
 
 
 
@@ -172,12 +196,15 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 		q_dep  = device.getOutputQueue(name="disparity",maxSize=4,	blocking=False)
 	# Output queue will be used to get the encoded data from the output defined above
 	q_265c = device.getOutputQueue(name="h265_rgb",		maxSize=30,	blocking=False)
-	q_265d = device.getOutputQueue(name="h265_depth",	maxSize=30,	blocking=True)
+	q_265l = device.getOutputQueue(name="h265_left",	maxSize=30,	blocking=False)
+	q_265r = device.getOutputQueue(name="h265_right",	maxSize=30,	blocking=False)
+	q_265d = None
+	#q_265d = device.getOutputQueue(name="h265_depth",	maxSize=30,	blocking=True)
 
 	cmap_counter = 0
 
 	# The .h265 file is a raw stream file (not playable yet)
-	with open(color_outfn,'wb') as videorgbFile, open(depth_outfn,'wb') as videodepthFile:
+	with open(color_outfn,'wb') as videorgbFile, open(left_outfn,'wb') as videoleftFile, open(right_outfn,'wb') as videorightFile, open(depth_outfn,'wb') as videodepthFile:
 		print("Press Ctrl+C to stop encoding...")
 		try:
 			while True:
@@ -193,9 +220,15 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 				in_h265c = q_265c.get()		# blocking call, will wait until a new data has arrived
 				if args.debug_pipeline_steps:
 					print('4.')
-				in_h265d = q_265d.get()		# blocking call, will wait until a new data has arrived
+				in_h265l = q_265l.get()		# blocking call, will wait until a new data has arrived
 				if args.debug_pipeline_steps:
 					print('5.')
+				in_h265r = q_265r.get()		# blocking call, will wait until a new data has arrived
+				if args.debug_pipeline_steps:
+					print('6.')
+				#in_h265d = q_265d.get()		# blocking call, will wait until a new data has arrived
+				if args.debug_pipeline_steps:
+					print('7.')
 
 				'''
 				if args.debug_img_sizes:
@@ -204,7 +237,10 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 				'''
 
 				in_h265c.getData().tofile(videorgbFile)		# appends the packet data to the opened file
-				in_h265d.getData().tofile(videodepthFile)	# appends the packet data to the opened file
+				in_h265l.getData().tofile(videoleftFile)	# appends the packet data to the opened file
+				in_h265r.getData().tofile(videorightFile)	# appends the packet data to the opened file
+				#in_h265d.getData().tofile(videodepthFile)	# appends the packet data to the opened file
+				in_h265d = None
 
 				curr_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 				if curr_time != last_time:

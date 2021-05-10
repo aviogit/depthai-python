@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import contextlib
 import depthai as dai
 import csv
@@ -66,6 +67,7 @@ with contextlib.ExitStack() as stack:
         csvFile_list.append(open(output_path_list[i]+".csv", mode='a'))
         csvWriter_list.append(csv.writer(csvFile_list[i], delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL))
         csvWriter_list[i].writerow(["Frame number", "Sequence number", "Timestamp (monotonic)", "Timestamp (system time)"])
+        print(f'Writing files for OAK # {i}')
 
     t_start = time()
     t_record_curr = 0.0
