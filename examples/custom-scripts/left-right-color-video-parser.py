@@ -7,14 +7,28 @@ import datetime
 import numpy as np
 from pathlib import Path
 
-color_cap  = cv2.VideoCapture('color-2021-05-10-16-26-53.h265')
-left_cap   = cv2.VideoCapture('left-2021-05-10-16-26-53.h265')
-right_cap  = cv2.VideoCapture('right-2021-05-10-16-26-53.h265')
+parser = argparse.ArgumentParser()
+parser.add_argument('--prefix', nargs='?', help="color-/left-/right-<prefix>.h265 video files will be used")
+parser.add_argument('--start-frame', default=0, type=int, help='start frame for start replaying the video triplet')
+args = parser.parse_args()
+
+if args.prefix is None:
+	print(f'Please specify a valid prefix for video files. Exiting...')
+	sys.exit(0)
+
+color_cap  = cv2.VideoCapture(f'color-{args.prefix}.h265')
+left_cap   = cv2.VideoCapture(f'left-{args.prefix}.h265')
+right_cap  = cv2.VideoCapture(f'right-{args.prefix}.h265')
 
 small_size = (1280, 720)
 
 pause = False
 
+if args.start_frame != 0:
+	print(f'Start frame: {args.start_frame}')
+	color_cap.set(cv2.CAP_PROP_POS_FRAMES, args.start_frame-1)
+	left_cap.set(cv2.CAP_PROP_POS_FRAMES, args.start_frame-1)
+	right_cap.set(cv2.CAP_PROP_POS_FRAMES, args.start_frame-1)
 while color_cap.isOpened() and left_cap.isOpened() and right_cap.isOpened():
 
 	delay_ms = 1 #if args.continuous else 0
