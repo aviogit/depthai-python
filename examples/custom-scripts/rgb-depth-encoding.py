@@ -18,7 +18,7 @@ args = argument_parser()
 start_time	= datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 
 color_outfn	= f'{args.output_dir}/color-{start_time}.h265'
-depth_outfn	= f'{args.output_dir}/depth-{start_time}.h265'
+#depth_outfn	= f'{args.output_dir}/depth-{start_time}.h265'
 left_outfn	= f'{args.output_dir}/left-{start_time}.h265'
 right_outfn	= f'{args.output_dir}/right-{start_time}.h265'
 
@@ -204,7 +204,8 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 	cmap_counter = 0
 
 	# The .h265 file is a raw stream file (not playable yet)
-	with open(color_outfn,'wb') as videorgbFile, open(left_outfn,'wb') as videoleftFile, open(right_outfn,'wb') as videorightFile, open(depth_outfn,'wb') as videodepthFile:
+	#with open(color_outfn,'wb') as videorgbFile, open(left_outfn,'wb') as videoleftFile, open(right_outfn,'wb') as videorightFile, open(depth_outfn,'wb') as videodepthFile:
+	with open(color_outfn,'wb') as videorgbFile, open(left_outfn,'wb') as videoleftFile, open(right_outfn,'wb') as videorightFile:
 		print("Press Ctrl+C to stop encoding...")
 		try:
 			while True:

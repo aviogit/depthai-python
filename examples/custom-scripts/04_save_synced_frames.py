@@ -112,6 +112,12 @@ controlInMono.out.link(right.inputControl)
 
 depth = pipeline.createStereoDepth()
 depth.setConfidenceThreshold(255)
+'''
+depth.setOutputRectified(rectified)
+#depth.setConfidenceThreshold(200)
+depth.setRectifyEdgeFillColor(0) # Black, to better see the cutout
+depth.setEmptyCalibration() # Set if the input frames are already rectified
+'''
 median = dai.StereoDepthProperties.MedianFilter.KERNEL_7x7
 depth.setMedianFilter(median)
 depth.setLeftRightCheck(lrcheck)
