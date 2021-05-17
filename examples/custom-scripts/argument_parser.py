@@ -21,10 +21,17 @@ def argument_parser():
 
 	parser = argparse.ArgumentParser(description='OAK-D video and depth h265 capture script')
 
+	# ---------------------
+	# -- CAPTURE OPTIONS --
+	# ---------------------
+	define_boolean_argument(parser, *var2opt('disparity'),			'capture disparity instead of left/right streams'	, True)
+	#define_boolean_argument(parser, *var2opt('leftright'),			'capture left/right instead of disparity stream'	, False)
+	parser.add_argument('--confidence',  type=int, default=250.0,	help="set the confidence treshold for disparity")
+
 	# ------------------
 	# -- OUTPUT FILES --
 	# ------------------
-	parser.add_argument('--output-dir', default='/mnt/btrfs-data', help='captured videos output directory')
+	parser.add_argument('--output-dir', default='/mnt/btrfs-data',		help='captured videos output directory')
 
 	# --------------
 	# -- HARDWARE --

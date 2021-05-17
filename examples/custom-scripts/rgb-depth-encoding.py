@@ -15,12 +15,14 @@ from colormaps import apply_colormap
 
 args = argument_parser()
 
-start_time	= datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+start_time		= datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 
-color_outfn	= f'{args.output_dir}/color-{start_time}.h265'
-#depth_outfn	= f'{args.output_dir}/depth-{start_time}.h265'
-left_outfn	= f'{args.output_dir}/left-{start_time}.h265'
-right_outfn	= f'{args.output_dir}/right-{start_time}.h265'
+color_outfn		= f'{args.output_dir}/color-{start_time}.h265'
+if args.disparity:
+	depth_outfn	= f'{args.output_dir}/depth-{start_time}.h265'
+else:
+	left_outfn	= f'{args.output_dir}/left-{start_time}.h265'
+	right_outfn	= f'{args.output_dir}/right-{start_time}.h265'
 
 
 
@@ -76,9 +78,10 @@ right.setBoardSocket(dai.CameraBoardSocket.RIGHT)
 
 # Create a node that will produce the depth map (using disparity output as it's easier to visualize depth this way)
 depth = pipeline.createStereoDepth()
-depth.setConfidenceThreshold(200)
+depth.setConfidenceThreshold(args.confidence)
 median = dai.StereoDepthProperties.MedianFilter.KERNEL_7x7 # For depth filtering
 depth.setMedianFilter(median)
+depth.setExtendedDisparity(True)
 
 '''
 If one or more of the additional depth modes (lrcheck, extended, subpixel)
@@ -139,11 +142,19 @@ def create_encoder(source, profile_tuple, stream_name):
 
 	return encoder, output
 
+def dequeue(queue, dbg_step=0):
+	if args.debug_pipeline_steps:
+		print(f'{dbg_step}.')
+	pkt = queue.get()	# blocking call, will wait until a new data has arrived
+	return pkt
 
-videorgbEncoder,   videorgbOut   = create_encoder(cam_rgb.video,     color_resolutions['1080p'], 'h265_rgb')
-#videodispEncoder,  videodispOut  = create_encoder(depth.disparity,   depth_resolutions['720p'],  'h265_depth')
-videoleftEncoder,  videoleftOut  = create_encoder(depth.syncedLeft,  depth_resolutions['720p'],  'h265_left')
-videorightEncoder, videorightOut = create_encoder(depth.syncedRight, depth_resolutions['720p'],  'h265_right')
+
+videorgbEncoder,   videorgbOut		= create_encoder(cam_rgb.video,     color_resolutions['1080p'], 'h265_rgb')
+if args.disparity:
+	videodispEncoder,  videodispOut	= create_encoder(depth.disparity,   depth_resolutions['720p'],  'h265_depth')
+else:
+	videoleftEncoder,  videoleftOut	= create_encoder(depth.syncedLeft,  depth_resolutions['720p'],  'h265_left')
+	videorightEncoder, videorightOut= create_encoder(depth.syncedRight, depth_resolutions['720p'],  'h265_right')
 
 '''
 # Create an encoder, consuming the frames and encoding them using H.265 encoding
@@ -192,44 +203,68 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 
 	if args.show_preview:
 		# Output queue will be used to get the rgb frames from the output defined above
-		q_rgb  = device.getOutputQueue(name="rgb",	maxSize=4,	blocking=False)
-		q_dep  = device.getOutputQueue(name="disparity",maxSize=4,	blocking=False)
+		q_rgb  = device.getOutputQueue(name="rgb",		maxSize=4,	blocking=False)
+		q_dep  = device.getOutputQueue(name="disparity",	maxSize=4,	blocking=False)
 	# Output queue will be used to get the encoded data from the output defined above
-	q_265c = device.getOutputQueue(name="h265_rgb",		maxSize=30,	blocking=False)
-	q_265l = device.getOutputQueue(name="h265_left",	maxSize=30,	blocking=False)
-	q_265r = device.getOutputQueue(name="h265_right",	maxSize=30,	blocking=False)
-	q_265d = None
-	#q_265d = device.getOutputQueue(name="h265_depth",	maxSize=30,	blocking=True)
+	q_265c = device.getOutputQueue(name="h265_rgb",			maxSize=30,	blocking=False)
+	if args.disparity:
+		q_265d = device.getOutputQueue(name="h265_depth",	maxSize=30,	blocking=False)
+	else:
+		q_265l = device.getOutputQueue(name="h265_left",	maxSize=30,	blocking=False)
+		q_265r = device.getOutputQueue(name="h265_right",	maxSize=30,	blocking=False)
 
 	cmap_counter = 0
 
 	# The .h265 file is a raw stream file (not playable yet)
-	#with open(color_outfn,'wb') as videorgbFile, open(left_outfn,'wb') as videoleftFile, open(right_outfn,'wb') as videorightFile, open(depth_outfn,'wb') as videodepthFile:
-	with open(color_outfn,'wb') as videorgbFile, open(left_outfn,'wb') as videoleftFile, open(right_outfn,'wb') as videorightFile:
+	if args.disparity:
+		#videorgbFile	= open(color_outfn,'wb')
+		videodepthFile	= open(depth_outfn,'wb')
+	else:
+		#videorgbFile	= open(color_outfn,'wb')
+		videoleftFile	= open(left_outfn, 'wb')
+		videorightFile	= open(right_outfn,'wb')
+	with open(color_outfn,'wb') as videorgbFile:
 		print("Press Ctrl+C to stop encoding...")
 		try:
 			while True:
 				if args.show_preview:
+					in_rgb   = dequeue(q_rgb, 1)
+					in_depth = dequeue(q_dep, 2)
+					'''
 					if args.debug_pipeline_steps:
 						print('1.')
-					in_rgb   = q_rgb.get()	# blocking call, will wait until a new data has arrived
+					in_rgb   = q_rgb.get()		# blocking call, will wait until a new data has arrived
 					if args.debug_pipeline_steps:
 						print('2.')
-					in_depth = q_dep.get()	# blocking call, will wait until a new data has arrived
+					in_depth = q_dep.get()		# blocking call, will wait until a new data has arrived
+					'''
+				'''
 				if args.debug_pipeline_steps:
 					print('3.')
-				in_h265c = q_265c.get()		# blocking call, will wait until a new data has arrived
+
+				in_h265c = q_265c.get()			# blocking call, will wait until a new data has arrived
+				'''
+				in_h265c = dequeue(q_265c, 3)
+				if args.disparity:
+					in_h265d = dequeue(q_265d, 4)
+					'''
+					if args.debug_pipeline_steps:
+						print('4.')
+					in_h265d = q_265d.get()		# blocking call, will wait until a new data has arrived
+					'''
+				else:
+					in_h265l = dequeue(q_265l, 5)
+					in_h265r = dequeue(q_265r, 6)
+					'''
+					if args.debug_pipeline_steps:
+						print('7.')
+					in_h265l = q_265l.get()		# blocking call, will wait until a new data has arrived
+					if args.debug_pipeline_steps:
+						print('5.')
+					in_h265r = q_265r.get()		# blocking call, will wait until a new data has arrived
+					'''
 				if args.debug_pipeline_steps:
-					print('4.')
-				in_h265l = q_265l.get()		# blocking call, will wait until a new data has arrived
-				if args.debug_pipeline_steps:
-					print('5.')
-				in_h265r = q_265r.get()		# blocking call, will wait until a new data has arrived
-				if args.debug_pipeline_steps:
-					print('6.')
-				#in_h265d = q_265d.get()		# blocking call, will wait until a new data has arrived
-				if args.debug_pipeline_steps:
-					print('7.')
+					print('7. all queues done')
 
 				'''
 				if args.debug_img_sizes:
@@ -237,11 +272,12 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 					print(f'{type(in_h265d)} - {len(in_h265d)}')
 				'''
 
-				in_h265c.getData().tofile(videorgbFile)		# appends the packet data to the opened file
-				in_h265l.getData().tofile(videoleftFile)	# appends the packet data to the opened file
-				in_h265r.getData().tofile(videorightFile)	# appends the packet data to the opened file
-				#in_h265d.getData().tofile(videodepthFile)	# appends the packet data to the opened file
-				in_h265d = None
+				in_h265c.getData().tofile(videorgbFile)			# appends the packet data to the opened file
+				if args.disparity:
+					in_h265d.getData().tofile(videodepthFile)	# appends the packet data to the opened file
+				else:
+					in_h265l.getData().tofile(videoleftFile)	# appends the packet data to the opened file
+					in_h265r.getData().tofile(videorightFile)	# appends the packet data to the opened file
 
 				curr_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 				if curr_time != last_time:
@@ -285,7 +321,11 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 
 		except KeyboardInterrupt:
 			# Keyboard interrupt (Ctrl + C) detected
-			pass
+			if args.disparity:
+				videodepthFile.close()
+			else:
+				videoleftFile.close()
+				videorightFile.close()
 
 	print("To view the encoded data, convert the stream file (.h265) into a video file (.mp4) using a command below:")
 	print("ffmpeg -framerate 30 -i video.h265 -c copy video.mp4")
