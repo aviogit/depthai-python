@@ -36,13 +36,14 @@ depth_resolutions = {
 	# ---------------------
 	# -- CAPTURE OPTIONS --
 	# ---------------------
-	define_boolean_argument(parser, *var2opt('disparity'),			'capture disparity instead of left/right streams'	, True)
-	define_boolean_argument(parser, *var2opt('extended_disparity'),		'use extended disparity for closer distances'		, True)
-	define_boolean_argument(parser, *var2opt('subpixel_disparity'),		'use extended disparity for closer distances'		, False)
-	#define_boolean_argument(parser, *var2opt('leftright'),			'capture left/right instead of disparity stream'	, False)
+	define_boolean_argument(parser, *var2opt('disparity'),			'capture disparity instead of left/right streams'				, True)
+	define_boolean_argument(parser, *var2opt('extended_disparity'),		'use extended disparity for closer distances'					, True)
+	define_boolean_argument(parser, *var2opt('subpixel_disparity'),		'use extended disparity for closer distances'					, False)
+	#define_boolean_argument(parser, *var2opt('leftright'),			'capture left/right instead of disparity stream'				, False)
 	parser.add_argument('--confidence',  type=int, default=250.0,		help="set the confidence treshold for disparity")
 	parser.add_argument('--color-resolution', default='1080p',		help='captured videos RGB resolution (1080p @ 60 FPS or 4K @ 60 FPS)')
 	parser.add_argument('--depth-resolution', default='400p',		help='captured videos depth resolution (800p @ 60 FPS or 720p @ 60 FPS or 400p @ 120 FPS)')
+	define_boolean_argument(parser, *var2opt('wls_filter'),			'apply WLS filter to disparity and save a separate CV2 video'			, False)
 
 	# ------------------
 	# -- OUTPUT FILES --
@@ -52,20 +53,22 @@ depth_resolutions = {
 	# --------------
 	# -- HARDWARE --
 	# --------------
-	define_boolean_argument(parser, *var2opt('force_usb2'), 'force the OAK-D camera in USB2 mode (useful in low bitrate/low power scenarios)', False)
+	define_boolean_argument(parser, *var2opt('force_usb2'), 'force the OAK-D camera in USB2 mode (useful in low bitrate/low power scenarios)'		, False)
 
 	# ---------------
 	# -- DEBUGGING --
 	# ---------------
-	define_boolean_argument(parser, *var2opt('debug_img_sizes'),		'add debugging information about captured image sizes'	, False)
-	define_boolean_argument(parser, *var2opt('debug_pipeline_types'),	'add debugging information about captured image types'	, False)
-	define_boolean_argument(parser, *var2opt('debug_pipeline_steps'),	'add debugging information about capturing steps'	, False)
+	define_boolean_argument(parser, *var2opt('debug_img_sizes'),		'add debugging information about captured image sizes'				, False)
+	define_boolean_argument(parser, *var2opt('debug_pipeline_types'),	'add debugging information about captured image types'				, False)
+	define_boolean_argument(parser, *var2opt('debug_pipeline_steps'),	'add debugging information about capturing steps'				, False)
 
 	# ------------------
 	# -- VIEW OPTIONS --
 	# ------------------
-	define_boolean_argument(parser, *var2opt('show_preview'),		'show OpenCV windows with the captured images'		, False)
-	define_boolean_argument(parser, *var2opt('write_preview'),		'write the captured images in OpenCV (JPG/PNG) format'	, True)
+	define_boolean_argument(parser, *var2opt('show_preview'),		'show OpenCV windows with the captured images'					, False)
+	define_boolean_argument(parser, *var2opt('show_wls_preview'),		'show host-side WLS filtering made with OpenCV'					, False)
+	define_boolean_argument(parser, *var2opt('write_preview'),		'write the captured images in OpenCV (JPG/PNG) format'				, True)
+	define_boolean_argument(parser, *var2opt('write_wls_preview'),		'write host-side WLS filtering images made with OpenCV (JPG/PNG) format'	, True)
 
 	'''
 	parser.set_defaults(show_fps=False)

@@ -19,6 +19,7 @@ args = argument_parser()
 start_time		= datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 
 color_outfn		= f'{args.output_dir}/color-{start_time}.h265'
+wls_outfn		= f'{args.output_dir}/wls-{start_time}.avi'
 if args.disparity:
 	depth_outfn	= f'{args.output_dir}/depth-{start_time}.h265'
 else:
@@ -26,6 +27,7 @@ else:
 	right_outfn	= f'{args.output_dir}/right-{start_time}.h265'
 
 
+# video = cv2.VideoWriter('appsrc ! queue ! videoconvert ! video/x-raw ! omxh264enc ! video/x-h264 ! h264parse ! rtph264pay ! udpsink host=192.168.0.2 port=5000 sync=false',0,25.0,(640,480))
 
 
 # Start defining a pipeline
@@ -97,11 +99,13 @@ multiplier = 255 / max_disparity
 
 
 
-xoutRectifiedRight = pipeline.createXLinkOut()
-xoutRectifiedRight.setStreamName("rectifiedRight")
-depth.rectifiedRight.link(xoutRectifiedRight.input)
-
-
+if args.wls_filter:
+	xoutRectifiedRight = pipeline.createXLinkOut()
+	xoutRectifiedRight.setStreamName("rectifiedRight")
+	depth.rectifiedRight.link(xoutRectifiedRight.input)
+	if args.write_wls_preview:
+		wls_cap = cv2.VideoWriter(wls_outfn, cv2.VideoWriter.fourcc('M','J','P','G'), depth_fps, (depth_width, depth_height))
+		#cv2.VideoWriter_fourcc(*"MJPG"), 30,(640,480))
 
 
 '''
@@ -140,7 +144,8 @@ class wlsFilter:
         self._lambda = _lambda
         self._sigma = _sigma
         self.wlsFilter = cv2.ximgproc.createDisparityWLSFilterGeneric(False)
-        cv2.namedWindow(self.wlsStream)
+        if args.show_wls_preview:
+            cv2.namedWindow(self.wlsStream)
         '''
         self.lambdaTrackbar = trackbar('Lambda', self.wlsStream, 0, 255, 80, self.on_trackbar_change_lambda)
         self.sigmaTrackbar  = trackbar('Sigma',  self.wlsStream, 0, 100, 15, self.on_trackbar_change_sigma)
@@ -220,15 +225,20 @@ def apply_wls_filter(disp_img, r_img, baseline, fov):
 	focal = disp_img.shape[1] / (2. * math.tan(math.radians(fov / 2)))
 	depth_scale_factor = baseline * focal
 
-	filtered_disp, depthFrame = wlsFilter.filter(disp_img, r_img, depth_scale_factor)
+	filtered_disp, depth_frame = wlsFilter.filter(disp_img, r_img, depth_scale_factor)
 
-	cv2.imshow("wls raw depth", depthFrame)
+	if args.show_wls_preview:
+		cv2.imshow("wls raw depth", depth_frame)
 
 	filtered_disp = (filtered_disp * (255/(disp_levels-1))).astype(np.uint8)
-	cv2.imshow(wlsFilter.wlsStream, filtered_disp)
+	if args.show_wls_preview:
+		cv2.imshow(wlsFilter.wlsStream, filtered_disp)
 
 	colored_disp = cv2.applyColorMap(filtered_disp, cv2.COLORMAP_HOT)
-	cv2.imshow("wls colored disp", colored_disp)
+	if args.show_wls_preview:
+		cv2.imshow("wls colored disp", colored_disp)
+
+	return filtered_disp, colored_disp
 
 
 
@@ -298,7 +308,8 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 		q_265l = device.getOutputQueue(name="h265_left",	maxSize=30,	blocking=False)
 		q_265r = device.getOutputQueue(name="h265_right",	maxSize=30,	blocking=False)
 
-	q_rright = device.getOutputQueue("rectifiedRight", maxSize=4, blocking=False)
+	if args.wls_filter:
+		q_rright = device.getOutputQueue("rectifiedRight",	maxSize=4,	blocking=False)
 
 
 	cmap_counter = 0
@@ -344,9 +355,9 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 					frame = cv2.medianBlur(frame, 7)
 					frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
 					frame = cv2.applyColorMap(frame, cv2.COLORMAP_JET)
-					cv2.imshow("disparity", frame)
-					if cv2.waitKey(1) == ord('q'):
-						break
+					#cv2.imshow("disparity", frame)
+					#if cv2.waitKey(1) == ord('q'):
+					#	break
 					cv2.imwrite('/tmp/depth.png', frame) 
 
 				if args.show_preview:
@@ -382,14 +393,18 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 					if cv2.waitKey(1) == ord('q'):
 						break
 
-				in_rright = q_rright.get()
-				rr_img    = in_rright.getFrame()
-				rr_img    = cv2.flip(rr_img, flipCode=1)
-				disp_img  = in_depth.getFrame()
-				apply_wls_filter(disp_img, rr_img, baseline, fov)
-				if cv2.waitKey(1) == ord('q'):
-					break
 
+				if args.wls_filter:
+					in_rright = q_rright.get()
+					rr_img    = in_rright.getFrame()
+					rr_img    = cv2.flip(rr_img, flipCode=1)
+					disp_img  = in_depth.getFrame()
+					filtered_disp, colored_disp = apply_wls_filter(disp_img, rr_img, baseline, fov)
+					if args.write_wls_preview:
+						wls_cap.write(colored_disp)
+					if args.show_wls_preview:
+						if cv2.waitKey(1) == ord('q'):
+							break
 
 				cmap_counter += 1
 
