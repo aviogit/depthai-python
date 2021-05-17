@@ -21,6 +21,7 @@ def argument_parser():
 
 	parser = argparse.ArgumentParser(description='OAK-D video and depth h265 capture script')
 
+	'''
 color_resolutions = {
 		'1080p': (1920,	1080, 60, dai.ColorCameraProperties.SensorResolution.THE_1080_P),
 		'4K'   : (3840,	2160, 60, dai.ColorCameraProperties.SensorResolution.THE_4_K),
@@ -30,6 +31,8 @@ depth_resolutions = {
 		'800p': (1280,	800, 60,  dai.MonoCameraProperties.SensorResolution.THE_800_P),
 		'400p': (640,	400, 120, dai.MonoCameraProperties.SensorResolution.THE_400_P),
 }
+	'''
+
 	# ---------------------
 	# -- CAPTURE OPTIONS --
 	# ---------------------
@@ -38,8 +41,8 @@ depth_resolutions = {
 	define_boolean_argument(parser, *var2opt('subpixel_disparity'),		'use extended disparity for closer distances'		, False)
 	#define_boolean_argument(parser, *var2opt('leftright'),			'capture left/right instead of disparity stream'	, False)
 	parser.add_argument('--confidence',  type=int, default=250.0,		help="set the confidence treshold for disparity")
-	parser.add_argument('--color_resolution', default='1080p',		help='captured videos RGB resolution (1080p @ 60 FPS or 4K @ 60 FPS)')
-	parser.add_argument('--depth_resolution', default='400p',		help='captured videos depth resolution (800p @ 60 FPS or 720p @ 60 FPS or 400p @ 120 FPS)')
+	parser.add_argument('--color-resolution', default='1080p',		help='captured videos RGB resolution (1080p @ 60 FPS or 4K @ 60 FPS)')
+	parser.add_argument('--depth-resolution', default='400p',		help='captured videos depth resolution (800p @ 60 FPS or 720p @ 60 FPS or 400p @ 120 FPS)')
 
 	# ------------------
 	# -- OUTPUT FILES --

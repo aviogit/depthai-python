@@ -41,8 +41,8 @@ depth_resolutions = {
 		'400p': (640,	400, 120, dai.MonoCameraProperties.SensorResolution.THE_400_P),
 }
 
-color_resolution = color_resolutions['1080p']
-depth_resolution = depth_resolutions['400p']
+color_resolution = color_resolutions[args.color_resolution]
+depth_resolution = depth_resolutions[args.depth_resolution]
 
 color_width, color_height, color_fps, color_profile	= color_resolution
 depth_width, depth_height, depth_fps, dprofile		= depth_resolution
@@ -69,9 +69,34 @@ right.setBoardSocket(dai.CameraBoardSocket.RIGHT)
 # Create a node that will produce the depth map (using disparity output as it's easier to visualize depth this way)
 depth = pipeline.createStereoDepth()
 depth.setConfidenceThreshold(args.confidence)
+
 median = dai.StereoDepthProperties.MedianFilter.KERNEL_7x7 # For depth filtering
 depth.setMedianFilter(median)
+
+'''
 #depth.setExtendedDisparity(args.extended_disparity)
+depth.setOutputRectified(True)		# The rectified streams are horizontally mirrored by default
+depth.setOutputDepth(False)
+depth.setRectifyEdgeFillColor(0)	# Black, to better see the cutout from rectification (black stripe on the edges)
+depth.setLeftRightCheck(lrcheck)
+'''
+
+# Normal disparity values range from 0..95, will be used for normalization
+max_disparity = 95
+
+if args.extended_disparity:
+	max_disparity *= 2 # Double the range
+depth.setExtendedDisparity(args.extended_disparity)
+
+if args.subpixel_disparity:
+	max_disparity *= 32 # 5 fractional bits, x32
+depth.setSubpixel(args.subpixel_disparity)
+
+# When we get disparity to the host, we will multiply all values with the multiplier
+# for better visualization
+multiplier = 255 / max_disparity
+
+
 
 '''
 If one or more of the additional depth modes (lrcheck, extended, subpixel)
@@ -95,22 +120,49 @@ left.out.link(depth.left)
 right.out.link(depth.right)
 
 
+class wlsFilter:
+    wlsStream = "wlsFilter"
+
+    '''
+    def on_trackbar_change_lambda(self, value):
+        self._lambda = value * 100
+    def on_trackbar_change_sigma(self, value):
+        self._sigma = value / float(10)
+    '''
+
+    def __init__(self, _lambda, _sigma):
+        self._lambda = _lambda
+        self._sigma = _sigma
+        self.wlsFilter = cv2.ximgproc.createDisparityWLSFilterGeneric(False)
+        cv2.namedWindow(self.wlsStream)
+        '''
+        self.lambdaTrackbar = trackbar('Lambda', self.wlsStream, 0, 255, 80, self.on_trackbar_change_lambda)
+        self.sigmaTrackbar  = trackbar('Sigma',  self.wlsStream, 0, 100, 15, self.on_trackbar_change_sigma)
+        '''
+
+    def filter(self, disparity, right, depthScaleFactor):
+        # https://github.com/opencv/opencv_contrib/blob/master/modules/ximgproc/include/opencv2/ximgproc/disparity_filter.hpp#L92
+        self.wlsFilter.setLambda(self._lambda)
+        # https://github.com/opencv/opencv_contrib/blob/master/modules/ximgproc/include/opencv2/ximgproc/disparity_filter.hpp#L99
+        self.wlsFilter.setSigmaColor(self._sigma)
+        filteredDisp = self.wlsFilter.filter(disparity, right)
+
+        # Compute depth from disparity (32 levels)
+        with np.errstate(divide='ignore'): # Should be safe to ignore div by zero here
+            # raw depth values
+            depthFrame = (depthScaleFactor / filteredDisp).astype(np.uint16)
+
+        return filteredDisp, depthFrame
+       
 
 
-# Normal disparity values range from 0..95, will be used for normalization
-max_disparity = 95
+wlsFilter = wlsFilter(_lambda=8000, _sigma=1.5)
 
-if args.extended_disparity:
-	max_disparity *= 2 # Double the range
-depth.setExtendedDisparity(args.extended_disparity)
+baseline = 75 #mm
+disp_levels = 96
+fov = 71.86
 
-if args.subpixel_disparity:
-	max_disparity *= 32 # 5 fractional bits, x32
-depth.setSubpixel(args.subpixel_disparity)
 
-# When we get disparity to the host, we will multiply all values with the multiplier
-# for better visualization
-multiplier = 255 / max_disparity
 
 
 
@@ -157,6 +209,22 @@ def dequeue(queue, dbg_step=0):
 		print(f'{dbg_step}.')
 	pkt = queue.get()	# blocking call, will wait until a new data has arrived
 	return pkt
+
+def apply_wls_filter(disp_img, r_img, baseline, fov):
+	focal = disp_img.shape[1] / (2. * math.tan(math.radians(fov / 2)))
+	depth_scale_factor = baseline * focal
+
+	filtered_disp, depthFrame = wlsFilter.filter(disp_img, r_img, depth_scale_factor)
+
+	cv2.imshow("wls raw depth", depthFrame)
+
+	filtered_disp = (filtered_disp * (255/(disp_levels-1))).astype(np.uint8)
+	cv2.imshow(wlsFilter.wlsStream, filtered_disp)
+
+	colored_disp = cv2.applyColorMap(filtered_disp, cv2.COLORMAP_HOT)
+	cv2.imshow("wls colored disp", colored_disp)
+
+
 
 
 videorgbEncoder,   videorgbOut		= create_encoder(cam_rgb.video,     color_resolution, 'h265_rgb')
@@ -264,6 +332,7 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 					frame = in_depth.getFrame()
 					print(f'{frame.shape = }')
 					frame = (frame*multiplier).astype(np.uint8)
+					frame = cv2.medianBlur(frame, 7)
 					frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
 					frame = cv2.applyColorMap(frame, cv2.COLORMAP_JET)
 					cv2.imshow("disparity", frame)
@@ -303,6 +372,12 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 			
 					if cv2.waitKey(1) == ord('q'):
 						break
+
+				'''
+				disp_img = in_depth.getFrame()
+				apply_wls_filter(disp_img, r_img, baseline, fov):
+				'''
+
 
 				cmap_counter += 1
 
