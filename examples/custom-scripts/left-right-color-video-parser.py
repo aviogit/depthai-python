@@ -22,7 +22,8 @@ def get_quarter_img(frame, show_quarter_img):
 parser = argparse.ArgumentParser()
 parser.add_argument('--prefix', nargs='?', help="color-/left-/right-<prefix>.h265 video files will be used")
 parser.add_argument('--start-frame', default=0, type=int, help='start frame for start replaying the video triplet')
-define_boolean_argument(parser, *var2opt('disparity'), 'capture disparity instead of left/right streams', True)
+define_boolean_argument(parser, *var2opt('disparity'), 'capture disparity instead of left/right streams', False)
+define_boolean_argument(parser, *var2opt('wls_disparity'), 'capture wls disparity instead of left/right or normal disparity streams', True)
 args = parser.parse_args()
 
 if args.prefix is None:
@@ -35,6 +36,10 @@ if args.disparity:
 	depth_cap	= cv2.VideoCapture(f'depth-{args.prefix}.h265')
 	depth_len	= int(depth_cap.get(cv2.CAP_PROP_FRAME_COUNT))
 	print(f'{color_len = } - {depth_len = }')
+elif args.wls_disparity:
+	wls_cap		= cv2.VideoCapture(f'wls-{args.prefix}.avi')
+	wls_len		= int(wls_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+	print(f'{color_len = } - {wls_len = }')
 else:
 	left_cap	= cv2.VideoCapture(f'left-{args.prefix}.h265')
 	left_len	= int(left_cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -55,6 +60,8 @@ if args.start_frame != 0:
 	color_cap.set(cv2.CAP_PROP_POS_FRAMES, args.start_frame-1)
 	if args.disparity:
 		depth_cap.set(cv2.CAP_PROP_POS_FRAMES, args.start_frame-1)
+	elif args.wls_disparity:
+		wls_cap.set(cv2.CAP_PROP_POS_FRAMES, args.start_frame-1)
 	else:
 		left_cap.set(cv2.CAP_PROP_POS_FRAMES, args.start_frame-1)
 		right_cap.set(cv2.CAP_PROP_POS_FRAMES, args.start_frame-1)
@@ -62,6 +69,9 @@ if args.start_frame != 0:
 while color_cap.isOpened():
 	if args.disparity:
 		if not depth_cap.isOpened():
+			break
+	elif args.wls_disparity:
+		if not wls_cap.isOpened():
 			break
 	else:
 		if not left_cap.isOpened() or not right_cap.isOpened():
@@ -82,6 +92,9 @@ while color_cap.isOpened():
 	if args.disparity:
 		dret, dframe = depth_cap.read()
 		small_size = (dframe.shape[1], dframe.shape[0])
+	elif args.wls_disparity:
+		wret, wframe = wls_cap.read()
+		small_size = (wframe.shape[1], wframe.shape[0])
 	else:
 		lret, lframe = left_cap.read()
 		rret, rframe = right_cap.read()
@@ -101,6 +114,9 @@ while color_cap.isOpened():
 		dframe_s = cv2.applyColorMap(dframe_s, cv2.COLORMAP_JET)
 
 		combo = np.concatenate((cframe_s, dframe_s), axis=0)
+	elif args.wls_disparity:
+		wframe_s = get_quarter_img(wframe, show_quarter_img)
+		combo = np.concatenate((cframe_s, wframe_s), axis=0)
 	else:
 		#lframe_s = lframe[int(small_size[0]/4):lframe.shape[1], :]
 		#rframe_s = rframe[int(small_size[0]/4):rframe.shape[1], :]
@@ -116,6 +132,8 @@ while color_cap.isOpened():
 color_cap.release()
 if args.disparity:
 	depth_cap.release()
+elif args.wls_disparity:
+	wls_cap.release()
 else:
 	left_cap.release()
 	right_cap.release()
