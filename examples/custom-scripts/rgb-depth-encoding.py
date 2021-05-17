@@ -3,6 +3,7 @@
 import cv2
 import sys
 import time
+import math
 import depthai as dai
 import numpy as np
 from pathlib import Path
@@ -73,13 +74,11 @@ depth.setConfidenceThreshold(args.confidence)
 median = dai.StereoDepthProperties.MedianFilter.KERNEL_7x7 # For depth filtering
 depth.setMedianFilter(median)
 
-'''
 #depth.setExtendedDisparity(args.extended_disparity)
 depth.setOutputRectified(True)		# The rectified streams are horizontally mirrored by default
 depth.setOutputDepth(False)
 depth.setRectifyEdgeFillColor(0)	# Black, to better see the cutout from rectification (black stripe on the edges)
-depth.setLeftRightCheck(lrcheck)
-'''
+depth.setLeftRightCheck(False)
 
 # Normal disparity values range from 0..95, will be used for normalization
 max_disparity = 95
@@ -95,6 +94,13 @@ depth.setSubpixel(args.subpixel_disparity)
 # When we get disparity to the host, we will multiply all values with the multiplier
 # for better visualization
 multiplier = 255 / max_disparity
+
+
+
+xoutRectifiedRight = pipeline.createXLinkOut()
+xoutRectifiedRight.setStreamName("rectifiedRight")
+depth.rectifiedRight.link(xoutRectifiedRight.input)
+
 
 
 
@@ -292,6 +298,9 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 		q_265l = device.getOutputQueue(name="h265_left",	maxSize=30,	blocking=False)
 		q_265r = device.getOutputQueue(name="h265_right",	maxSize=30,	blocking=False)
 
+	q_rright = device.getOutputQueue("rectifiedRight", maxSize=4, blocking=False)
+
+
 	cmap_counter = 0
 
 	# The .h265 file is a raw stream file (not playable yet)
@@ -373,10 +382,13 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 					if cv2.waitKey(1) == ord('q'):
 						break
 
-				'''
-				disp_img = in_depth.getFrame()
-				apply_wls_filter(disp_img, r_img, baseline, fov):
-				'''
+				in_rright = q_rright.get()
+				rr_img    = in_rright.getFrame()
+				rr_img    = cv2.flip(rr_img, flipCode=1)
+				disp_img  = in_depth.getFrame()
+				apply_wls_filter(disp_img, rr_img, baseline, fov)
+				if cv2.waitKey(1) == ord('q'):
+					break
 
 
 				cmap_counter += 1
