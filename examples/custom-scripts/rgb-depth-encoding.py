@@ -41,9 +41,11 @@ depth_resolutions = {
 		'400p': (640,	400, 120, dai.MonoCameraProperties.SensorResolution.THE_400_P),
 }
 
+color_resolution = color_resolutions['1080p']
+depth_resolution = depth_resolutions['400p']
 
-color_width, color_height, color_fps, color_profile	= color_resolutions['1080p']
-depth_width, depth_height, depth_fps, dprofile		= depth_resolutions['720p']
+color_width, color_height, color_fps, color_profile	= color_resolution
+depth_width, depth_height, depth_fps, dprofile		= depth_resolution
 
 # Define a source - color camera
 cam_rgb = pipeline.createColorCamera()
@@ -52,6 +54,7 @@ cam_rgb.setBoardSocket(dai.CameraBoardSocket.RGB)
 cam_rgb.setResolution(color_profile)
 cam_rgb.setInterleaved(False)
 cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.RGB)
+
 
 # Define a source - two mono (grayscale) cameras
 left = pipeline.createMonoCamera()
@@ -63,25 +66,12 @@ right.setResolution(dprofile)
 right.setBoardSocket(dai.CameraBoardSocket.RIGHT)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 # Create a node that will produce the depth map (using disparity output as it's easier to visualize depth this way)
 depth = pipeline.createStereoDepth()
 depth.setConfidenceThreshold(args.confidence)
 median = dai.StereoDepthProperties.MedianFilter.KERNEL_7x7 # For depth filtering
 depth.setMedianFilter(median)
-depth.setExtendedDisparity(True)
+#depth.setExtendedDisparity(args.extended_disparity)
 
 '''
 If one or more of the additional depth modes (lrcheck, extended, subpixel)
@@ -106,7 +96,27 @@ right.out.link(depth.right)
 
 
 
-if args.show_preview:
+
+# Normal disparity values range from 0..95, will be used for normalization
+max_disparity = 95
+
+if args.extended_disparity:
+	max_disparity *= 2 # Double the range
+depth.setExtendedDisparity(args.extended_disparity)
+
+if args.subpixel_disparity:
+	max_disparity *= 32 # 5 fractional bits, x32
+depth.setSubpixel(args.subpixel_disparity)
+
+# When we get disparity to the host, we will multiply all values with the multiplier
+# for better visualization
+multiplier = 255 / max_disparity
+
+
+
+
+
+if (args.show_preview or args.write_preview) and args.disparity:
 	# Create output
 	xout_rgb = pipeline.createXLinkOut()
 	xout_dep = pipeline.createXLinkOut()
@@ -149,12 +159,12 @@ def dequeue(queue, dbg_step=0):
 	return pkt
 
 
-videorgbEncoder,   videorgbOut		= create_encoder(cam_rgb.video,     color_resolutions['1080p'], 'h265_rgb')
+videorgbEncoder,   videorgbOut		= create_encoder(cam_rgb.video,     color_resolution, 'h265_rgb')
 if args.disparity:
-	videodispEncoder,  videodispOut	= create_encoder(depth.disparity,   depth_resolutions['720p'],  'h265_depth')
+	videodispEncoder,  videodispOut	= create_encoder(depth.disparity,   depth_resolution, 'h265_depth')
 else:
-	videoleftEncoder,  videoleftOut	= create_encoder(depth.syncedLeft,  depth_resolutions['720p'],  'h265_left')
-	videorightEncoder, videorightOut= create_encoder(depth.syncedRight, depth_resolutions['720p'],  'h265_right')
+	videoleftEncoder,  videoleftOut	= create_encoder(depth.syncedLeft,  depth_resolution, 'h265_left')
+	videorightEncoder, videorightOut= create_encoder(depth.syncedRight, depth_resolution, 'h265_right')
 
 '''
 # Create an encoder, consuming the frames and encoding them using H.265 encoding
@@ -201,10 +211,11 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 	# Start pipeline
 	device.startPipeline()
 
-	if args.show_preview:
+	if (args.show_preview or args.write_preview) and args.disparity:
 		# Output queue will be used to get the rgb frames from the output defined above
 		q_rgb  = device.getOutputQueue(name="rgb",		maxSize=4,	blocking=False)
 		q_dep  = device.getOutputQueue(name="disparity",	maxSize=4,	blocking=False)
+
 	# Output queue will be used to get the encoded data from the output defined above
 	q_265c = device.getOutputQueue(name="h265_rgb",			maxSize=30,	blocking=False)
 	if args.disparity:
@@ -227,50 +238,17 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 		print("Press Ctrl+C to stop encoding...")
 		try:
 			while True:
-				if args.show_preview:
+				if (args.show_preview or args.write_preview) and args.disparity:
 					in_rgb   = dequeue(q_rgb, 1)
 					in_depth = dequeue(q_dep, 2)
-					'''
-					if args.debug_pipeline_steps:
-						print('1.')
-					in_rgb   = q_rgb.get()		# blocking call, will wait until a new data has arrived
-					if args.debug_pipeline_steps:
-						print('2.')
-					in_depth = q_dep.get()		# blocking call, will wait until a new data has arrived
-					'''
-				'''
-				if args.debug_pipeline_steps:
-					print('3.')
-
-				in_h265c = q_265c.get()			# blocking call, will wait until a new data has arrived
-				'''
 				in_h265c = dequeue(q_265c, 3)
 				if args.disparity:
 					in_h265d = dequeue(q_265d, 4)
-					'''
-					if args.debug_pipeline_steps:
-						print('4.')
-					in_h265d = q_265d.get()		# blocking call, will wait until a new data has arrived
-					'''
 				else:
 					in_h265l = dequeue(q_265l, 5)
 					in_h265r = dequeue(q_265r, 6)
-					'''
-					if args.debug_pipeline_steps:
-						print('7.')
-					in_h265l = q_265l.get()		# blocking call, will wait until a new data has arrived
-					if args.debug_pipeline_steps:
-						print('5.')
-					in_h265r = q_265r.get()		# blocking call, will wait until a new data has arrived
-					'''
 				if args.debug_pipeline_steps:
 					print('7. all queues done')
-
-				'''
-				if args.debug_img_sizes:
-					print(f'{type(in_h265c)} - {len(in_h265c)}')
-					print(f'{type(in_h265d)} - {len(in_h265d)}')
-				'''
 
 				in_h265c.getData().tofile(videorgbFile)			# appends the packet data to the opened file
 				if args.disparity:
@@ -283,6 +261,15 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 				if curr_time != last_time:
 					print(f'{curr_time = }')
 					last_time = curr_time
+					frame = in_depth.getFrame()
+					print(f'{frame.shape = }')
+					frame = (frame*multiplier).astype(np.uint8)
+					frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
+					frame = cv2.applyColorMap(frame, cv2.COLORMAP_JET)
+					cv2.imshow("disparity", frame)
+					if cv2.waitKey(1) == ord('q'):
+						break
+					cv2.imwrite('/tmp/depth.png', frame) 
 
 				if args.show_preview:
 					# data is originally represented as a flat 1D array, it needs to be converted into HxW form

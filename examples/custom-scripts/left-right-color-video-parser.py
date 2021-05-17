@@ -20,15 +20,22 @@ if args.prefix is None:
 	sys.exit(0)
 
 color_cap		= cv2.VideoCapture(f'color-{args.prefix}.h265')
+color_len		= int(color_cap.get(cv2.CAP_PROP_FRAME_COUNT))
 if args.disparity:
 	depth_cap	= cv2.VideoCapture(f'depth-{args.prefix}.h265')
+	depth_len	= int(depth_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+	print(f'{color_len = } - {depth_len = }')
 else:
 	left_cap	= cv2.VideoCapture(f'left-{args.prefix}.h265')
+	left_len	= int(left_cap.get(cv2.CAP_PROP_FRAME_COUNT))
 	right_cap	= cv2.VideoCapture(f'right-{args.prefix}.h265')
+	right_len	= int(right_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+	print(f'{color_len = } - {left_len = } - {right_len = }')
 
 small_size = (1280, 720)
 
 pause = False
+
 
 if args.start_frame != 0:
 	print(f'Start frame: {args.start_frame}')
