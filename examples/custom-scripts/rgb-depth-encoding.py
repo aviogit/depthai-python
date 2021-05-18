@@ -3,7 +3,6 @@
 import cv2
 import sys
 import time
-import math
 import depthai as dai
 import numpy as np
 from pathlib import Path
@@ -18,10 +17,9 @@ from utils import dequeue, dequeued_frames_dict, datetime_from_string, create_en
 
 args = argument_parser()
 
-'''
-def datetime_from_string(str_time):
-	return datetime.strptime(str_time, '%Y-%m-%d-%H-%M-%S')
-'''
+# Run with:
+# ./rgb-depth-encoding.py --output-dir /tmp --confidence 200 --no-extended-disparity --depth-resolution 720p --wls-filter
+
 
 start_time		= datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 color_outfn		= f'{args.output_dir}/color-{start_time}.h265'
@@ -152,15 +150,32 @@ fov = 71.86
 
 
 
+def compute_fps(curr_time, last_time, dequeued_frames_dict):
+	if curr_time != last_time:
+		#print(f'{curr_time = }')
+		last_time = curr_time
+		curr_time = datetime.now()
+		run_time = curr_time - datetime_from_string(start_capture_time)
+		display_str = ''
+		for stream, frames in dequeued_frames_dict.items():
+			if run_time.total_seconds() == 0:
+				break
+			microseconds = run_time.seconds * 1000000 + run_time.microseconds
+			fps = frames*1000000/microseconds
+			if display_str != '':
+				display_str += ' - '
+			display_str += stream + ' ' + str(frames) + ' ' + f'{fps:.2f}'
+		print(display_str)
+	return last_time
 
 
 
 
 if (args.show_preview or args.write_preview) and args.disparity:
 	# Create output
-	xout_rgb = pipeline.createXLinkOut()
+	#xout_rgb = pipeline.createXLinkOut()
 	xout_dep = pipeline.createXLinkOut()
-	xout_rgb.setStreamName("rgb")
+	#xout_rgb.setStreamName("rgb")
 	xout_dep.setStreamName("disparity")
 	
 	if args.debug_pipeline_types:
@@ -170,10 +185,10 @@ if (args.show_preview or args.write_preview) and args.disparity:
 		print(f'{type(depth) = } - {depth = }')
 		print(f'{type(depth.disparity) = } - {depth.disparity = }')
 	
-	cam_rgb.preview.link(xout_rgb.input)
+	#cam_rgb.preview.link(xout_rgb.input)
 	depth.disparity.link(xout_dep.input)
 	
-	cam_rgb.video.link(xout_rgb.input)
+	#cam_rgb.video.link(xout_rgb.input)
 	#depth.video.link(xout_dep.input)
 
 
@@ -202,8 +217,6 @@ if args.show_preview:
 	cv2.namedWindow('combo',cv2.WINDOW_NORMAL)
 	cv2.resizeWindow('combo', int(color_width/2), int(color_height/2))
 
-last_time = start_time
-
 # Pipeline defined, now the device is connected to
 with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 	# Start pipeline
@@ -211,7 +224,7 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 
 	if (args.show_preview or args.write_preview) and args.disparity:
 		# Output queue will be used to get the rgb frames from the output defined above
-		q_rgb  = device.getOutputQueue(name="rgb",		maxSize=4,	blocking=False)
+		#q_rgb  = device.getOutputQueue(name="rgb",		maxSize=4,	blocking=False)
 		q_dep  = device.getOutputQueue(name="disparity",	maxSize=4,	blocking=False)
 
 	# Output queue will be used to get the encoded data from the output defined above
@@ -240,9 +253,10 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 		print("Press Ctrl+C to stop encoding...")
 		try:
 			start_capture_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+			last_time = start_time
 			while True:
 				if (args.show_preview or args.write_preview) and args.disparity:
-					in_rgb   = dequeue(q_rgb, 'rgb-preview'  , args, 1, debug=False)
+					#in_rgb   = dequeue(q_rgb, 'rgb-preview'  , args, 1, debug=False)
 					in_depth = dequeue(q_dep, 'depth-preview', args, 2, debug=False)
 				in_h265c = dequeue(q_265c	, 'rgb-h265'     , args, 3, debug=False)
 				if args.disparity:
@@ -261,27 +275,15 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 					in_h265r.getData().tofile(videorightFile)	# appends the packet data to the opened file
 
 				curr_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-				if curr_time != last_time:
-					#print(f'{curr_time = }')
-					last_time = curr_time
-					run_time = datetime_from_string(curr_time) - datetime_from_string(start_capture_time)
-					display_str = ''
-					for stream, frames in dequeued_frames_dict.items():
-						if run_time.total_seconds() == 0:
-							break
-						fps = frames/run_time.total_seconds()
-						if display_str != '':
-							display_str += ' - '
-						display_str += stream + ' ' + str(frames) + ' ' + f'{fps:.2f}'
-					print(display_str)
-					'''
+				last_time = compute_fps(curr_time, last_time, dequeued_frames_dict)
+				'''
 					print(f'{start_time = } - {start_capture_time = } - {curr_time = } - {run_time = }')
 					print('Frames statistics:')
 					for stream, frames in dequeued_frames_dict.items():
 						fps = frames/run_time.total_seconds()
 						print(f'{stream = } - {frames = } - {fps = :.2f}')
-					'''
-					'''
+				'''
+				'''
 					frame = in_depth.getFrame()
 					#print(f'{frame.shape = }')
 					frame = (frame*multiplier).astype(np.uint8)
@@ -292,7 +294,7 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 					#if cv2.waitKey(1) == ord('q'):
 					#	break
 					cv2.imwrite('/tmp/depth.png', frame) 
-					'''
+				'''
 
 				if args.show_preview:
 					# data is originally represented as a flat 1D array, it needs to be converted into HxW form
@@ -327,19 +329,17 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 					if cv2.waitKey(1) == ord('q'):
 						break
 
-				'''
 				if args.wls_filter:
 					in_rright = q_rright.get()
 					rr_img    = in_rright.getFrame()
 					rr_img    = cv2.flip(rr_img, flipCode=1)
 					disp_img  = in_depth.getFrame()
-					filtered_disp, colored_disp = apply_wls_filter(disp_img, rr_img, baseline, fov)
+					filtered_disp, colored_disp = apply_wls_filter(wlsFilter, disp_img, rr_img, baseline, fov, disp_levels, args)
 					if args.write_wls_preview:
 						wls_cap.write(colored_disp)
 					if args.show_wls_preview:
 						if cv2.waitKey(1) == ord('q'):
 							break
-				'''
 
 				cmap_counter += 1
 

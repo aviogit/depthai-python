@@ -1,6 +1,8 @@
 import cv2
-from datetime import datetime
+import math
+import numpy as np
 import depthai as dai
+from datetime import datetime
 
 
 def datetime_from_string(str_time):
@@ -69,7 +71,7 @@ def create_encoder(pipeline, source, profile_tuple, stream_name):
 
 	return encoder, output
 
-def apply_wls_filter(disp_img, r_img, baseline, fov):
+def apply_wls_filter(wlsFilter, disp_img, r_img, baseline, fov, disp_levels, args):
 	focal = disp_img.shape[1] / (2. * math.tan(math.radians(fov / 2)))
 	depth_scale_factor = baseline * focal
 
