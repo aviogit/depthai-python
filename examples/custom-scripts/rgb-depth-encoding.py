@@ -352,11 +352,55 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 			start_capture_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 			while True:
 				if (args.show_preview or args.write_preview) and args.disparity:
-					in_rgb   = dequeue(q_rgb, 'rgb-preview'  , args, 1)
-					in_depth = dequeue(q_dep, 'depth-preview', args, 2)
-				in_h265c = dequeue(q_265c	, 'rgb-h265'     , args, 3)
+					#in_rgb   = dequeue(q_rgb, 'rgb-preview'  , args, 1)
+					name  = 'rgb-preview'
+					queue = q_rgb
+					dbg_step = 1
+					if name in dequeued_frames_dict:
+						dequeued_frames_dict[name] += 1
+					else:
+						dequeued_frames_dict[name] = 1
+					if args.debug_pipeline_steps:
+						print(f'{dbg_step}.')
+					pkt = queue.get()	# blocking call, will wait until a new data has arrived
+					in_rgb = pkt
+					#in_depth = dequeue(q_dep, 'depth-preview', args, 2)
+					name  = 'depth-preview'
+					queue = q_dep
+					dbg_step = 2
+					if name in dequeued_frames_dict:
+						dequeued_frames_dict[name] += 1
+					else:
+						dequeued_frames_dict[name] = 1
+					if args.debug_pipeline_steps:
+						print(f'{dbg_step}.')
+					pkt = queue.get()	# blocking call, will wait until a new data has arrived
+					in_depth = pkt
+				#in_h265c = dequeue(q_265c	, 'rgb-h265'     , args, 3)
+				name  = 'rgb-h265'
+				queue = q_265c
+				dbg_step = 3
+				if name in dequeued_frames_dict:
+					dequeued_frames_dict[name] += 1
+				else:
+					dequeued_frames_dict[name] = 1
+				if args.debug_pipeline_steps:
+					print(f'{dbg_step}.')
+				pkt = queue.get()	# blocking call, will wait until a new data has arrived
+				in_h265c = pkt
 				if args.disparity:
-					in_h265d = dequeue(q_265d, 'depth-h265'  , args, 4)
+					#in_h265d = dequeue(q_265d, 'depth-h265'  , args, 4)
+					name  = 'depth-h265'
+					queue = q_265d
+					dbg_step = 4
+					if name in dequeued_frames_dict:
+						dequeued_frames_dict[name] += 1
+					else:
+						dequeued_frames_dict[name] = 1
+					if args.debug_pipeline_steps:
+						print(f'{dbg_step}.')
+					pkt = queue.get()	# blocking call, will wait until a new data has arrived
+					in_h265d = pkt
 				else:
 					in_h265l = dequeue(q_265l, 'left-h265'   , args, 5)
 					in_h265r = dequeue(q_265r, 'right-h265'  , args, 6)
