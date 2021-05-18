@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import depthai as dai
+from datetime import datetime
+
 
 # Start defining a pipeline
 pipeline = dai.Pipeline()
@@ -32,7 +34,14 @@ with dai.Device(pipeline) as device:
     with open('video.h265', 'wb') as videoFile:
         print("Press Ctrl+C to stop encoding...")
         try:
+            last_time = None
             while True:
+                print('asdf')
+                curr_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+                if curr_time != last_time:
+                    print(f'{curr_time = }')
+                    last_time = curr_time
+
                 h264Packet = q.get()  # blocking call, will wait until a new data has arrived
                 h264Packet.getData().tofile(videoFile)  # appends the packet data to the opened file
         except KeyboardInterrupt:

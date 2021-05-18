@@ -86,12 +86,12 @@ right.setBoardSocket(dai.CameraBoardSocket.RIGHT)
 depth = pipeline.createStereoDepth()
 depth.setConfidenceThreshold(args.confidence)
 
-median = dai.StereoDepthProperties.MedianFilter.KERNEL_7x7 # For depth filtering
-depth.setMedianFilter(median)
+#median = dai.StereoDepthProperties.MedianFilter.KERNEL_7x7 # For depth filtering
+#depth.setMedianFilter(median)
 
 #depth.setExtendedDisparity(args.extended_disparity)
-depth.setOutputRectified(True)		# The rectified streams are horizontally mirrored by default
-depth.setOutputDepth(False)
+#depth.setOutputRectified(True)		# The rectified streams are horizontally mirrored by default
+#depth.setOutputDepth(False)
 depth.setRectifyEdgeFillColor(0)	# Black, to better see the cutout from rectification (black stripe on the edges)
 depth.setLeftRightCheck(False)
 
@@ -142,43 +142,6 @@ depth.setSubpixel(False)
 left.out.link(depth.left)
 right.out.link(depth.right)
 
-'''
-class wlsFilter:
-    wlsStream = "wlsFilter"
-
-    #''
-    def on_trackbar_change_lambda(self, value):
-        self._lambda = value * 100
-    def on_trackbar_change_sigma(self, value):
-        self._sigma = value / float(10)
-    #''
-
-    def __init__(self, _lambda, _sigma):
-        self._lambda = _lambda
-        self._sigma = _sigma
-        self.wlsFilter = cv2.ximgproc.createDisparityWLSFilterGeneric(False)
-        if args.show_wls_preview:
-            cv2.namedWindow(self.wlsStream)
-        #''
-        self.lambdaTrackbar = trackbar('Lambda', self.wlsStream, 0, 255, 80, self.on_trackbar_change_lambda)
-        self.sigmaTrackbar  = trackbar('Sigma',  self.wlsStream, 0, 100, 15, self.on_trackbar_change_sigma)
-        #''
-
-    def filter(self, disparity, right, depthScaleFactor):
-        # https://github.com/opencv/opencv_contrib/blob/master/modules/ximgproc/include/opencv2/ximgproc/disparity_filter.hpp#L92
-        self.wlsFilter.setLambda(self._lambda)
-        # https://github.com/opencv/opencv_contrib/blob/master/modules/ximgproc/include/opencv2/ximgproc/disparity_filter.hpp#L99
-        self.wlsFilter.setSigmaColor(self._sigma)
-        filteredDisp = self.wlsFilter.filter(disparity, right)
-
-        # Compute depth from disparity (32 levels)
-        with np.errstate(divide='ignore'): # Should be safe to ignore div by zero here
-            # raw depth values
-            depthFrame = (depthScaleFactor / filteredDisp).astype(np.uint16)
-
-        return filteredDisp, depthFrame
-'''
-       
 
 
 wlsFilter = wlsFilter(args, _lambda=8000, _sigma=1.5)
@@ -213,57 +176,6 @@ if (args.show_preview or args.write_preview) and args.disparity:
 	cam_rgb.video.link(xout_rgb.input)
 	#depth.video.link(xout_dep.input)
 
-'''
-def create_encoder(pipeline, source, profile_tuple, stream_name):
-	# Create an encoder, consuming the frames and encoding them using H.265 encoding
-	encoder = pipeline.createVideoEncoder()
-	w, h, fps, resolution = profile_tuple
-	codec = dai.VideoEncoderProperties.Profile.H265_MAIN if '265' in stream_name else dai.VideoEncoderProperties.Profile.H264_MAIN
-	encoder.setDefaultProfilePreset(w, h, fps, codec)
-	source.link(encoder.input)
-
-	# Create output
-	output = pipeline.createXLinkOut()
-	output.setStreamName(stream_name)
-	encoder.bitstream.link(output.input)
-
-	return encoder, output
-'''
-
-'''
-dequeued_frames_dict = dict()
-def dequeue(queue, name, dbg_step=0):
-	if name in dequeued_frames_dict:
-		dequeued_frames_dict[name] += 1
-	else:
-		dequeued_frames_dict[name] = 1
-	if args.debug_pipeline_steps:
-		print(f'{dbg_step}.')
-	pkt = queue.get()	# blocking call, will wait until a new data has arrived
-	return pkt
-'''
-
-'''
-def apply_wls_filter(disp_img, r_img, baseline, fov):
-	focal = disp_img.shape[1] / (2. * math.tan(math.radians(fov / 2)))
-	depth_scale_factor = baseline * focal
-
-	filtered_disp, depth_frame = wlsFilter.filter(disp_img, r_img, depth_scale_factor)
-
-	if args.show_wls_preview:
-		cv2.imshow("wls raw depth", depth_frame)
-
-	filtered_disp = (filtered_disp * (255/(disp_levels-1))).astype(np.uint8)
-	if args.show_wls_preview:
-		cv2.imshow(wlsFilter.wlsStream, filtered_disp)
-
-	colored_disp = cv2.applyColorMap(filtered_disp, cv2.COLORMAP_HOT)
-	if args.show_wls_preview:
-		cv2.imshow("wls colored disp", colored_disp)
-
-	return filtered_disp, colored_disp
-'''
-
 
 
 
@@ -274,28 +186,6 @@ else:
 	videoleftEncoder,  videoleftOut	= create_encoder(pipeline, depth.syncedLeft,  depth_resolution, 'h265_left')
 	videorightEncoder, videorightOut= create_encoder(pipeline, depth.syncedRight, depth_resolution, 'h265_right')
 
-'''
-# Create an encoder, consuming the frames and encoding them using H.265 encoding
-videorgbEncoder = pipeline.createVideoEncoder()
-videorgbEncoder.setDefaultProfilePreset(color_width, color_height, color_fps, dai.VideoEncoderProperties.Profile.H265_MAIN)
-cam_rgb.video.link(videorgbEncoder.input)
-
-# Create output
-videorgbOut = pipeline.createXLinkOut()
-videorgbOut.setStreamName('h265_rgb')
-videorgbEncoder.bitstream.link(videorgbOut.input)
-
-
-# Create an encoder, consuming the frames and encoding them using H.265 encoding
-videodispEncoder = pipeline.createVideoEncoder()
-videodispEncoder.setDefaultProfilePreset(depth_width, depth_height, depth_fps, dai.VideoEncoderProperties.Profile.H265_MAIN)
-depth.disparity.link(videodispEncoder.input)
-
-# Create output
-videodispOut = pipeline.createXLinkOut()
-videodispOut.setStreamName('h265_depth')
-videodispEncoder.bitstream.link(videodispOut.input)
-'''
 
 
 
@@ -352,58 +242,14 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 			start_capture_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 			while True:
 				if (args.show_preview or args.write_preview) and args.disparity:
-					#in_rgb   = dequeue(q_rgb, 'rgb-preview'  , args, 1)
-					name  = 'rgb-preview'
-					queue = q_rgb
-					dbg_step = 1
-					if name in dequeued_frames_dict:
-						dequeued_frames_dict[name] += 1
-					else:
-						dequeued_frames_dict[name] = 1
-					if args.debug_pipeline_steps:
-						print(f'{dbg_step}.')
-					pkt = queue.get()	# blocking call, will wait until a new data has arrived
-					in_rgb = pkt
-					#in_depth = dequeue(q_dep, 'depth-preview', args, 2)
-					name  = 'depth-preview'
-					queue = q_dep
-					dbg_step = 2
-					if name in dequeued_frames_dict:
-						dequeued_frames_dict[name] += 1
-					else:
-						dequeued_frames_dict[name] = 1
-					if args.debug_pipeline_steps:
-						print(f'{dbg_step}.')
-					pkt = queue.get()	# blocking call, will wait until a new data has arrived
-					in_depth = pkt
-				#in_h265c = dequeue(q_265c	, 'rgb-h265'     , args, 3)
-				name  = 'rgb-h265'
-				queue = q_265c
-				dbg_step = 3
-				if name in dequeued_frames_dict:
-					dequeued_frames_dict[name] += 1
-				else:
-					dequeued_frames_dict[name] = 1
-				if args.debug_pipeline_steps:
-					print(f'{dbg_step}.')
-				pkt = queue.get()	# blocking call, will wait until a new data has arrived
-				in_h265c = pkt
+					in_rgb   = dequeue(q_rgb, 'rgb-preview'  , args, 1, debug=False)
+					in_depth = dequeue(q_dep, 'depth-preview', args, 2, debug=False)
+				in_h265c = dequeue(q_265c	, 'rgb-h265'     , args, 3, debug=False)
 				if args.disparity:
-					#in_h265d = dequeue(q_265d, 'depth-h265'  , args, 4)
-					name  = 'depth-h265'
-					queue = q_265d
-					dbg_step = 4
-					if name in dequeued_frames_dict:
-						dequeued_frames_dict[name] += 1
-					else:
-						dequeued_frames_dict[name] = 1
-					if args.debug_pipeline_steps:
-						print(f'{dbg_step}.')
-					pkt = queue.get()	# blocking call, will wait until a new data has arrived
-					in_h265d = pkt
+					in_h265d = dequeue(q_265d, 'depth-h265'  , args, 4, debug=False)
 				else:
-					in_h265l = dequeue(q_265l, 'left-h265'   , args, 5)
-					in_h265r = dequeue(q_265r, 'right-h265'  , args, 6)
+					in_h265l = dequeue(q_265l, 'left-h265'   , args, 5, debug=False)
+					in_h265r = dequeue(q_265r, 'right-h265'  , args, 6, debug=False)
 				if args.debug_pipeline_steps:
 					print('7. all queues done')
 
