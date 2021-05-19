@@ -17,6 +17,7 @@ parser.add_argument('--start-frame', default=0, type=int, help='start frame for 
 define_boolean_argument(parser, *var2opt('disparity'), 'capture disparity instead of left/right streams', False)
 define_boolean_argument(parser, *var2opt('wls_disparity'), 'capture wls disparity instead of left/right or normal disparity streams', True)
 define_boolean_argument(parser, *var2opt('show_wls_preview'), 'show host-side WLS filtering made with OpenCV', False)
+define_boolean_argument(parser, *var2opt('preview'), 'show images during disparity conversion', False)
 args = parser.parse_args()
 
 if args.prefix is None:
@@ -43,18 +44,23 @@ small_size = (640, 400)
 
 pause = False
 
+wls_outfn = f'wls-{args.prefix}.avi'
+depth_fps, depth_width, depth_height =  30, 1280, 720
+wls_cap = cv2.VideoWriter(wls_outfn, cv2.VideoWriter.fourcc('M','J','P','G'), depth_fps, (depth_width, depth_height))
+
 while depth_cap.isOpened() and rright_cap.isOpened():
 
-	delay_ms = 1 #if args.continuous else 0
-	if pause:
-		delay_ms = 100
-	key = cv2.waitKey(delay_ms)
-	if key & 0xFF == ord('q'):
-		break
-	if key & 0xFF == ord('p'):
-		pause = not pause
-	if pause:
-		continue
+	if args.preview:
+		delay_ms = 1 #if args.continuous else 0
+		if pause:
+			delay_ms = 100
+		key = cv2.waitKey(delay_ms)
+		if key & 0xFF == ord('q'):
+			break
+		if key & 0xFF == ord('p'):
+			pause = not pause
+		if pause:
+			continue
 
 	dret,  dframe	= depth_cap.read()
 	rrret, rrframe	= rright_cap.read()
@@ -67,7 +73,10 @@ while depth_cap.isOpened() and rright_cap.isOpened():
 	filtered_disp, colored_disp = apply_wls_filter(wlsFilter, disp_gray, rr_img, baseline, fov, disp_levels, args)
 	combo		= np.concatenate((rr_img, colored_disp), axis=0)
 
-	cv2.imshow('frame', combo)
+	wls_cap.write(colored_disp)
+
+	if args.preview:
+		cv2.imshow('frame', combo)
 
 depth_cap.release()
 rright_cap.release()
