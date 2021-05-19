@@ -25,22 +25,22 @@ args = argument_parser()
 # Run with:
 # ./rgb-depth-encoding.py --output-dir /tmp --confidence 200 --no-extended-disparity --depth-resolution 720p --wls-filter
 
-# Close to 30 FPS, no depth preview, no RGB, but it should be possible to do WLS filtering offline with just h264 depth and h264 rectified right
+# Close to 30 FPS, no depth preview, no RGB, but it should be possible to do WLS filtering offline with just h265 depth and h265 rectified right
 # ./rgb-depth-encoding.py --output-dir /tmp --confidence 200 --no-extended-disparity --depth-resolution 720p --rectified-right --no-write-preview --no-rgb
 
 
 start_time		= datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-color_outfn		= f'{args.output_dir}/color-{start_time}.h264'
+color_outfn		= f'{args.output_dir}/color-{start_time}.h265'
 wls_outfn		= f'{args.output_dir}/wls-{start_time}.avi'
-rr_outfn		= f'{args.output_dir}/rectright-{start_time}.h264'
+rr_outfn		= f'{args.output_dir}/rectright-{start_time}.h265'
 if args.disparity:
-	depth_outfn	= f'{args.output_dir}/depth-{start_time}.h264'
+	depth_outfn	= f'{args.output_dir}/depth-{start_time}.h265'
 else:
-	left_outfn	= f'{args.output_dir}/left-{start_time}.h264'
-	right_outfn	= f'{args.output_dir}/right-{start_time}.h264'
+	left_outfn	= f'{args.output_dir}/left-{start_time}.h265'
+	right_outfn	= f'{args.output_dir}/right-{start_time}.h265'
 
 
-# video = cv2.VideoWriter('appsrc ! queue ! videoconvert ! video/x-raw ! omxh264enc ! video/x-h264 ! h264parse ! rtph264pay ! udpsink host=192.168.0.2 port=5000 sync=false',0,25.0,(640,480))
+# video = cv2.VideoWriter('appsrc ! queue ! videoconvert ! video/x-raw ! omxh265enc ! video/x-h265 ! h265parse ! rtph265pay ! udpsink host=192.168.0.2 port=5000 sync=false',0,25.0,(640,480))
 
 
 # Start defining a pipeline
@@ -195,11 +195,11 @@ if args_websocket:
 
 args_gstreamer = False
 if args_gstreamer:
-	fourcc = cv2.VideoWriter_fourcc(*'H264')
-	#gstout = cv2.VideoWriter('appsrc ! videoconvert ! x264enc tune=zerolatency noise-reduction=10000 bitrate=2048 speed-preset=superfast ! rtph264pay config-interval=1 pt=96 ! udpsink host=127.0.0.1 port=58889', fourcc, 30, (1280, 720), True)
+	fourcc = cv2.VideoWriter_fourcc(*'H265')
+	#gstout = cv2.VideoWriter('appsrc ! videoconvert ! x265enc tune=zerolatency noise-reduction=10000 bitrate=2048 speed-preset=superfast ! rtph265pay config-interval=1 pt=96 ! udpsink host=127.0.0.1 port=58889', fourcc, 30, (1280, 720), True)
 	# ouput GStreamer pipeline
-	#gstout = cv2.VideoWriter('appsrc ! rtph264pay config-interval=1 pt=96 ! udpsink host=127.0.0.1 port=58889', fourcc, 30, (1280, 720), True)
-	gstout = cv2.VideoWriter('appsrc ! videoconvert ! x264enc tune=zerolatency noise-reduction=10000 bitrate=2048 speed-preset=superfast ! rtph264pay config-interval=1 pt=96 ! udpsink host=127.0.0.1 port=58889', fourcc, 30, (1280, 720), True)
+	#gstout = cv2.VideoWriter('appsrc ! rtph265pay config-interval=1 pt=96 ! udpsink host=127.0.0.1 port=58889', fourcc, 30, (1280, 720), True)
+	gstout = cv2.VideoWriter('appsrc ! videoconvert ! x265enc tune=zerolatency noise-reduction=10000 bitrate=2048 speed-preset=superfast ! rtph265pay config-interval=1 pt=96 ! udpsink host=127.0.0.1 port=58889', fourcc, 30, (1280, 720), True)
 	if not gstout.isOpened():
 		print('VideoWriter not opened')
 		sys.exit(0)
@@ -251,14 +251,14 @@ if (args.show_preview or args.write_preview) and args.disparity:
 
 
 if args.rgb:
-	videorgbEncoder,   videorgbOut  = create_encoder(pipeline, cam_rgb.video,        color_resolution, 'h264_rgb')
+	videorgbEncoder,   videorgbOut  = create_encoder(pipeline, cam_rgb.video,        color_resolution, 'h265_rgb')
 if args.disparity:
-	videodispEncoder,  videodispOut	= create_encoder(pipeline, depth.disparity,      depth_resolution, 'h264_depth')
+	videodispEncoder,  videodispOut	= create_encoder(pipeline, depth.disparity,      depth_resolution, 'h265_depth')
 else:
-	videoleftEncoder,  videoleftOut	= create_encoder(pipeline, depth.syncedLeft,     depth_resolution, 'h264_left')
-	videorightEncoder, videorightOut= create_encoder(pipeline, depth.syncedRight,    depth_resolution, 'h264_right')
+	videoleftEncoder,  videoleftOut	= create_encoder(pipeline, depth.syncedLeft,     depth_resolution, 'h265_left')
+	videorightEncoder, videorightOut= create_encoder(pipeline, depth.syncedRight,    depth_resolution, 'h265_right')
 if args.wls_filter or args.rectified_right:
-	videorrEncoder,    videorrOut   = create_encoder(pipeline, depth.rectifiedRight, depth_resolution, 'h264_rr')
+	videorrEncoder,    videorrOut   = create_encoder(pipeline, depth.rectifiedRight, depth_resolution, 'h265_rr')
 
 
 
@@ -288,21 +288,21 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 
 	# Output queue will be used to get the encoded data from the output defined above
 	if args.rgb:
-		q_264c = device.getOutputQueue(name="h264_rgb",		maxSize=30,	blocking=False)
+		q_265c = device.getOutputQueue(name="h265_rgb",		maxSize=30,	blocking=False)
 	if args.disparity:
-		q_264d = device.getOutputQueue(name="h264_depth",	maxSize=30,	blocking=False)
+		q_265d = device.getOutputQueue(name="h265_depth",	maxSize=30,	blocking=False)
 	else:
-		q_264l = device.getOutputQueue(name="h264_left",	maxSize=30,	blocking=False)
-		q_264r = device.getOutputQueue(name="h264_right",	maxSize=30,	blocking=False)
+		q_265l = device.getOutputQueue(name="h265_left",	maxSize=30,	blocking=False)
+		q_265r = device.getOutputQueue(name="h265_right",	maxSize=30,	blocking=False)
 
 	if args.wls_filter or args.rectified_right:
 		q_rright = device.getOutputQueue(name="rectifiedRight",	maxSize=4,	blocking=False)
-		q_264rr  = device.getOutputQueue(name="h264_rr",	maxSize=30,	blocking=False)
+		q_265rr  = device.getOutputQueue(name="h265_rr",	maxSize=30,	blocking=False)
 
 
 	cmap_counter = 0
 
-	# The .h264 file is a raw stream file (not playable yet)
+	# The .h265 file is a raw stream file (not playable yet)
 	if args.rgb:
 		videorgbFile    = open(color_outfn,'wb')
 	if args.disparity:
@@ -324,28 +324,28 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 				#in_rgb   = dequeue(q_rgb, 'rgb-preview'  , args, 1, debug=False)
 				in_depth  = dequeue(q_dep, 'depth-preview', args, 2, debug=False)
 			if args.rgb:
-				in_h264c = dequeue(q_264c, 'rgb-h264'     , args, 3, debug=False)
+				in_h265c = dequeue(q_265c, 'rgb-h265'     , args, 3, debug=False)
 			if args.disparity:
-				in_h264d  = dequeue(q_264d, 'depth-h264'  , args, 4, debug=False)
+				in_h265d  = dequeue(q_265d, 'depth-h265'  , args, 4, debug=False)
 			else:
-				in_h264l  = dequeue(q_264l, 'left-h264'   , args, 5, debug=False)
-				in_h264r  = dequeue(q_264r, 'right-h264'  , args, 6, debug=False)
+				in_h265l  = dequeue(q_265l, 'left-h265'   , args, 5, debug=False)
+				in_h265r  = dequeue(q_265r, 'right-h265'  , args, 6, debug=False)
 			if args.wls_filter or args.rectified_right:
-				in_h264rr = dequeue(q_264rr, 'rright-h264', args, 7, debug=False)
+				in_h265rr = dequeue(q_265rr, 'rright-h265', args, 7, debug=False)
 			if args.debug_pipeline_steps:
 				print('8. all queues done')
 
 			if args.rgb:
-				in_h264c.getData().tofile(videorgbFile)		# appends the packet data to the opened file
+				in_h265c.getData().tofile(videorgbFile)		# appends the packet data to the opened file
 			if args.disparity:
-				in_h264d.getData().tofile(videodepthFile)	# appends the packet data to the opened file
+				in_h265d.getData().tofile(videodepthFile)	# appends the packet data to the opened file
 			else:
-				in_h264l.getData().tofile(videoleftFile)	# appends the packet data to the opened file
-				in_h264r.getData().tofile(videorightFile)	# appends the packet data to the opened file
+				in_h265l.getData().tofile(videoleftFile)	# appends the packet data to the opened file
+				in_h265r.getData().tofile(videorightFile)	# appends the packet data to the opened file
 			if args.wls_filter or args.rectified_right:
-				in_h264rr.getData().tofile(videorrFile)		# appends the packet data to the opened file
+				in_h265rr.getData().tofile(videorrFile)		# appends the packet data to the opened file
 				'''
-				rr_nv12 = in_h264rr.getData()
+				rr_nv12 = in_h265rr.getData()
 				rr_nv12.tofile(videorrFile)			# appends the packet data to the opened file
 				print(type(rr_nv12), len(rr_nv12))
 				'''
@@ -358,7 +358,7 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 				if args_gstreamer:
 					gstout.write(rr_nv12)
 				'''
-				tmpfn = 'rright-h264-' + str(dequeued_frames_dict['rright-h264']) + '.raw'
+				tmpfn = 'rright-h265-' + str(dequeued_frames_dict['rright-h265']) + '.raw'
 				with open(tmpfn,'wb') as tmpfile:
 					print(tmpfn)
 					tmpfile.write(rr_nv12)
@@ -447,6 +447,6 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 	for stream, frames in dequeued_frames_dict.items():
 		fps = frames/run_time.total_seconds()
 		print(f'{stream = } - {frames = } - {fps = :.2f}')
-	print("To view the encoded data, convert the stream file (.h264) into a video file (.mp4) using a command below:")
-	print("ffmpeg -framerate 30 -i video.h264 -c copy video.mp4")
+	print("To view the encoded data, convert the stream file (.h265) into a video file (.mp4) using a command below:")
+	print("ffmpeg -framerate 30 -i video.h265 -c copy video.mp4")
 
