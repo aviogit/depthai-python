@@ -24,6 +24,7 @@ args = argument_parser()
 start_time		= datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 color_outfn		= f'{args.output_dir}/color-{start_time}.h265'
 wls_outfn		= f'{args.output_dir}/wls-{start_time}.avi'
+rr_outfn		= f'{args.output_dir}/rectright-{start_time}.h265'
 if args.disparity:
 	depth_outfn	= f'{args.output_dir}/depth-{start_time}.h265'
 else:
@@ -54,13 +55,14 @@ depth_resolution = depth_resolutions[args.depth_resolution]
 color_width, color_height, color_fps, color_profile	= color_resolution
 depth_width, depth_height, depth_fps, dprofile		= depth_resolution
 
-# Define a source - color camera
-cam_rgb = pipeline.createColorCamera()
-cam_rgb.setPreviewSize(color_width, color_height)
-cam_rgb.setBoardSocket(dai.CameraBoardSocket.RGB)
-cam_rgb.setResolution(color_profile)
-cam_rgb.setInterleaved(False)
-cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.RGB)
+if args.rgb:
+	# Define a source - color camera
+	cam_rgb = pipeline.createColorCamera()
+	cam_rgb.setPreviewSize(color_width, color_height)
+	cam_rgb.setBoardSocket(dai.CameraBoardSocket.RGB)
+	cam_rgb.setResolution(color_profile)
+	cam_rgb.setInterleaved(False)
+	cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.RGB)
 
 '''
 cam_rgb.initialControl.setManualFocus(130)
@@ -110,7 +112,7 @@ multiplier = 255 / max_disparity
 
 
 
-if args.wls_filter:
+if args.wls_filter or args.rectified_right:
 	xoutRectifiedRight = pipeline.createXLinkOut()
 	xoutRectifiedRight.setStreamName("rectifiedRight")
 	depth.rectifiedRight.link(xoutRectifiedRight.input)
@@ -194,12 +196,15 @@ if (args.show_preview or args.write_preview) and args.disparity:
 
 
 
-videorgbEncoder,   videorgbOut		= create_encoder(pipeline, cam_rgb.video,     color_resolution, 'h265_rgb')
+if args.rgb:
+	videorgbEncoder,   videorgbOut  = create_encoder(pipeline, cam_rgb.video,        color_resolution, 'h265_rgb')
 if args.disparity:
-	videodispEncoder,  videodispOut	= create_encoder(pipeline, depth.disparity,   depth_resolution, 'h265_depth')
+	videodispEncoder,  videodispOut	= create_encoder(pipeline, depth.disparity,      depth_resolution, 'h265_depth')
 else:
-	videoleftEncoder,  videoleftOut	= create_encoder(pipeline, depth.syncedLeft,  depth_resolution, 'h265_left')
-	videorightEncoder, videorightOut= create_encoder(pipeline, depth.syncedRight, depth_resolution, 'h265_right')
+	videoleftEncoder,  videoleftOut	= create_encoder(pipeline, depth.syncedLeft,     depth_resolution, 'h265_left')
+	videorightEncoder, videorightOut= create_encoder(pipeline, depth.syncedRight,    depth_resolution, 'h265_right')
+if args.wls_filter or args.rectified_right:
+	videorrEncoder,    videorrOut   = create_encoder(pipeline, depth.rectifiedRight, depth_resolution, 'h265_rr')
 
 
 
@@ -228,20 +233,24 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 		q_dep  = device.getOutputQueue(name="disparity",	maxSize=4,	blocking=False)
 
 	# Output queue will be used to get the encoded data from the output defined above
-	q_265c = device.getOutputQueue(name="h265_rgb",			maxSize=30,	blocking=False)
+	if args.rgb:
+		q_265c = device.getOutputQueue(name="h265_rgb",		maxSize=30,	blocking=False)
 	if args.disparity:
 		q_265d = device.getOutputQueue(name="h265_depth",	maxSize=30,	blocking=False)
 	else:
 		q_265l = device.getOutputQueue(name="h265_left",	maxSize=30,	blocking=False)
 		q_265r = device.getOutputQueue(name="h265_right",	maxSize=30,	blocking=False)
 
-	if args.wls_filter:
-		q_rright = device.getOutputQueue("rectifiedRight",	maxSize=4,	blocking=False)
+	if args.wls_filter or args.rectified_right:
+		q_rright = device.getOutputQueue(name="rectifiedRight",	maxSize=4,	blocking=False)
+		q_265rr  = device.getOutputQueue(name="h265_rr",	maxSize=30,	blocking=False)
 
 
 	cmap_counter = 0
 
 	# The .h265 file is a raw stream file (not playable yet)
+	if args.rgb:
+		videorgbFile    = open(color_outfn,'wb')
 	if args.disparity:
 		#videorgbFile	= open(color_outfn,'wb')
 		videodepthFile	= open(depth_outfn,'wb')
@@ -249,107 +258,115 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 		#videorgbFile	= open(color_outfn,'wb')
 		videoleftFile	= open(left_outfn, 'wb')
 		videorightFile	= open(right_outfn,'wb')
-	with open(color_outfn,'wb') as videorgbFile:
-		print("Press Ctrl+C to stop encoding...")
-		try:
-			start_capture_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-			last_time = start_time
-			while True:
-				if (args.show_preview or args.write_preview) and args.disparity:
-					#in_rgb   = dequeue(q_rgb, 'rgb-preview'  , args, 1, debug=False)
-					in_depth = dequeue(q_dep, 'depth-preview', args, 2, debug=False)
-				in_h265c = dequeue(q_265c	, 'rgb-h265'     , args, 3, debug=False)
-				if args.disparity:
-					in_h265d = dequeue(q_265d, 'depth-h265'  , args, 4, debug=False)
-				else:
-					in_h265l = dequeue(q_265l, 'left-h265'   , args, 5, debug=False)
-					in_h265r = dequeue(q_265r, 'right-h265'  , args, 6, debug=False)
-				if args.debug_pipeline_steps:
-					print('7. all queues done')
+	if args.wls_filter or args.rectified_right:
+		videorrFile	= open(rr_outfn,   'wb')
 
-				in_h265c.getData().tofile(videorgbFile)			# appends the packet data to the opened file
-				if args.disparity:
-					in_h265d.getData().tofile(videodepthFile)	# appends the packet data to the opened file
-				else:
-					in_h265l.getData().tofile(videoleftFile)	# appends the packet data to the opened file
-					in_h265r.getData().tofile(videorightFile)	# appends the packet data to the opened file
+	print("Press Ctrl+C to stop encoding...")
+	try:
+		start_capture_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+		last_time = start_time
+		while True:
+			if (args.show_preview or args.write_preview) and args.disparity:
+				#in_rgb   = dequeue(q_rgb, 'rgb-preview'  , args, 1, debug=False)
+				in_depth  = dequeue(q_dep, 'depth-preview', args, 2, debug=False)
+			if args.rgb:
+				in_h265c = dequeue(q_265c, 'rgb-h265'     , args, 3, debug=False)
+			if args.disparity:
+				in_h265d  = dequeue(q_265d, 'depth-h265'  , args, 4, debug=False)
+			else:
+				in_h265l  = dequeue(q_265l, 'left-h265'   , args, 5, debug=False)
+				in_h265r  = dequeue(q_265r, 'right-h265'  , args, 6, debug=False)
+			if args.wls_filter or args.rectified_right:
+				in_h265rr = dequeue(q_265rr, 'rright-h265', args, 7, debug=False)
+			if args.debug_pipeline_steps:
+				print('8. all queues done')
 
-				curr_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-				last_time = compute_fps(curr_time, last_time, dequeued_frames_dict)
-				'''
-					print(f'{start_time = } - {start_capture_time = } - {curr_time = } - {run_time = }')
-					print('Frames statistics:')
-					for stream, frames in dequeued_frames_dict.items():
-						fps = frames/run_time.total_seconds()
-						print(f'{stream = } - {frames = } - {fps = :.2f}')
-				'''
-				'''
-					frame = in_depth.getFrame()
-					#print(f'{frame.shape = }')
-					frame = (frame*multiplier).astype(np.uint8)
-					frame = cv2.medianBlur(frame, 7)
-					frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
-					frame = cv2.applyColorMap(frame, cv2.COLORMAP_JET)
-					#cv2.imshow("disparity", frame)
-					#if cv2.waitKey(1) == ord('q'):
-					#	break
-					cv2.imwrite('/tmp/depth.png', frame) 
-				'''
+			if args.rgb:
+				in_h265c.getData().tofile(videorgbFile)		# appends the packet data to the opened file
+			if args.disparity:
+				in_h265d.getData().tofile(videodepthFile)	# appends the packet data to the opened file
+			else:
+				in_h265l.getData().tofile(videoleftFile)	# appends the packet data to the opened file
+				in_h265r.getData().tofile(videorightFile)	# appends the packet data to the opened file
+			if args.wls_filter or args.rectified_right:
+				in_h265rr.getData().tofile(videorrFile)		# appends the packet data to the opened file
 
-				if args.show_preview:
-					# data is originally represented as a flat 1D array, it needs to be converted into HxW form
-					depth_h, depth_w = in_depth.getHeight(), in_depth.getWidth()
-					if args.debug_img_sizes:
-						print(f'{depth_h = } - {depth_w = }')
-					depth_frame = in_depth.getData().reshape((depth_h, depth_w)).astype(np.uint8)
-					if args.debug_img_sizes:
-						print(f'{depth_frame.shape = } - {len(depth_frame) = } - {type(depth_frame) = } - {depth_frame.size = }')
-					depth_frame_orig = cv2.normalize(depth_frame, None, 0, 255, cv2.NORM_MINMAX)
-					depth_frame = np.ascontiguousarray(depth_frame_orig)
-					# depth_frame is transformed, the color map will be applied to highlight the depth info
-					depth_frame = apply_colormap(depth_frame, cmap=13)
-					# depth_frame is ready to be shown
-					cv2.imshow("disparity", depth_frame)
-			
-					# Retrieve 'bgr' (opencv format) frame
-					rgb_frame = in_rgb.getCvFrame()
-					if args.debug_img_sizes:
-						print(f'{rgb_frame.shape = } - {len(rgb_frame) = } - {type(rgb_frame) = } - {rgb_frame.size = }')
-					cv2.imshow("rgb", rgb_frame)
-	
-					#img_grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-					depth_frame_th = cv2.adaptiveThreshold(depth_frame_orig, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
-					cv2.imshow("disparity th", depth_frame_th)
-					depth_frame_th_color = cv2.cvtColor(depth_frame_th, cv2.COLOR_GRAY2BGR)
-	
-					rgb_frame_resized = cv2.resize(rgb_frame, dsize=(depth_w, depth_h), interpolation=cv2.INTER_CUBIC)
-					combo = (rgb_frame_resized + depth_frame_th_color) / 2
-					cv2.imshow("combo", combo)
-			
+			curr_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+			last_time = compute_fps(curr_time, last_time, dequeued_frames_dict)
+			'''
+				print(f'{start_time = } - {start_capture_time = } - {curr_time = } - {run_time = }')
+				print('Frames statistics:')
+				for stream, frames in dequeued_frames_dict.items():
+					fps = frames/run_time.total_seconds()
+					print(f'{stream = } - {frames = } - {fps = :.2f}')
+			'''
+			'''
+				frame = in_depth.getFrame()
+				#print(f'{frame.shape = }')
+				frame = (frame*multiplier).astype(np.uint8)
+				frame = cv2.medianBlur(frame, 7)
+				frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
+				frame = cv2.applyColorMap(frame, cv2.COLORMAP_JET)
+				#cv2.imshow("disparity", frame)
+				#if cv2.waitKey(1) == ord('q'):
+				#	break
+				cv2.imwrite('/tmp/depth.png', frame) 
+			'''
+
+			if args.show_preview:
+				# data is originally represented as a flat 1D array, it needs to be converted into HxW form
+				depth_h, depth_w = in_depth.getHeight(), in_depth.getWidth()
+				if args.debug_img_sizes:
+					print(f'{depth_h = } - {depth_w = }')
+				depth_frame = in_depth.getData().reshape((depth_h, depth_w)).astype(np.uint8)
+				if args.debug_img_sizes:
+					print(f'{depth_frame.shape = } - {len(depth_frame) = } - {type(depth_frame) = } - {depth_frame.size = }')
+				depth_frame_orig = cv2.normalize(depth_frame, None, 0, 255, cv2.NORM_MINMAX)
+				depth_frame = np.ascontiguousarray(depth_frame_orig)
+				# depth_frame is transformed, the color map will be applied to highlight the depth info
+				depth_frame = apply_colormap(depth_frame, cmap=13)
+				# depth_frame is ready to be shown
+				cv2.imshow("disparity", depth_frame)
+		
+				# Retrieve 'bgr' (opencv format) frame
+				rgb_frame = in_rgb.getCvFrame()
+				if args.debug_img_sizes:
+					print(f'{rgb_frame.shape = } - {len(rgb_frame) = } - {type(rgb_frame) = } - {rgb_frame.size = }')
+				cv2.imshow("rgb", rgb_frame)
+
+				#img_grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+				depth_frame_th = cv2.adaptiveThreshold(depth_frame_orig, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+				cv2.imshow("disparity th", depth_frame_th)
+				depth_frame_th_color = cv2.cvtColor(depth_frame_th, cv2.COLOR_GRAY2BGR)
+
+				rgb_frame_resized = cv2.resize(rgb_frame, dsize=(depth_w, depth_h), interpolation=cv2.INTER_CUBIC)
+				combo = (rgb_frame_resized + depth_frame_th_color) / 2
+				cv2.imshow("combo", combo)
+		
+				if cv2.waitKey(1) == ord('q'):
+					break
+
+			if args.wls_filter:
+				in_rright = q_rright.get()
+				rr_img    = in_rright.getFrame()
+				rr_img    = cv2.flip(rr_img, flipCode=1)
+				disp_img  = in_depth.getFrame()
+				filtered_disp, colored_disp = apply_wls_filter(wlsFilter, disp_img, rr_img, baseline, fov, disp_levels, args)
+				if args.write_wls_preview:
+					wls_cap.write(colored_disp)
+				if args.show_wls_preview:
 					if cv2.waitKey(1) == ord('q'):
 						break
 
-				if args.wls_filter:
-					in_rright = q_rright.get()
-					rr_img    = in_rright.getFrame()
-					rr_img    = cv2.flip(rr_img, flipCode=1)
-					disp_img  = in_depth.getFrame()
-					filtered_disp, colored_disp = apply_wls_filter(wlsFilter, disp_img, rr_img, baseline, fov, disp_levels, args)
-					if args.write_wls_preview:
-						wls_cap.write(colored_disp)
-					if args.show_wls_preview:
-						if cv2.waitKey(1) == ord('q'):
-							break
+			cmap_counter += 1
 
-				cmap_counter += 1
-
-		except KeyboardInterrupt:
-			# Keyboard interrupt (Ctrl + C) detected
-			if args.disparity:
-				videodepthFile.close()
-			else:
-				videoleftFile.close()
-				videorightFile.close()
+	except KeyboardInterrupt:
+		# Keyboard interrupt (Ctrl + C) detected
+		if args.disparity:
+			videodepthFile.close()
+		else:
+			videoleftFile.close()
+			videorightFile.close()
 
 	run_time = datetime_from_string(curr_time) - datetime_from_string(start_capture_time)
 	print(f'{start_time = } - {start_capture_time = } - {curr_time = } - {run_time = }')
