@@ -5,6 +5,11 @@ import sys
 import time
 import depthai as dai
 import numpy as np
+
+import socket
+import struct
+import pickle
+
 from pathlib import Path
 
 from datetime import datetime
@@ -154,6 +159,52 @@ disp_levels = 96
 fov = 71.86
 
 
+'''
+class VideoCaptureYUV:
+    def __init__(self, filename, size):
+        self.height, self.width = size
+        self.frame_len = self.width * self.height * 3 / 2
+        self.f = open(filename, 'rb')
+        self.shape = (int(self.height*1.5), self.width)
+
+    def read_raw(self):
+        try:
+            raw = self.f.read(self.frame_len)
+            yuv = np.frombuffer(raw, dtype=np.uint8)
+            yuv = yuv.reshape(self.shape)
+        except Exception as e:
+            print str(e)
+            return False, None
+        return True, yuv
+
+    def read(self):
+        ret, yuv = self.read_raw()
+        if not ret:
+            return ret, yuv
+        bgr = cv2.cvtColor(yuv, cv2.COLOR_YUV2BGR_NV21)
+        return ret, bgr
+'''
+
+args_websocket = False
+if args_websocket:
+	#host_port = ('zapp-brannigan.ge.imati.cnr.it', 58889)
+	host_port = ('localhost', 58889)
+	clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	clientsocket.connect(host_port )
+
+
+args_gstreamer = False
+if args_gstreamer:
+	fourcc = cv2.VideoWriter_fourcc(*'H264')
+	#gstout = cv2.VideoWriter('appsrc ! videoconvert ! x264enc tune=zerolatency noise-reduction=10000 bitrate=2048 speed-preset=superfast ! rtph264pay config-interval=1 pt=96 ! udpsink host=127.0.0.1 port=58889', fourcc, 30, (1280, 720), True)
+	# ouput GStreamer pipeline
+	#gstout = cv2.VideoWriter('appsrc ! rtph264pay config-interval=1 pt=96 ! udpsink host=127.0.0.1 port=58889', fourcc, 30, (1280, 720), True)
+	gstout = cv2.VideoWriter('appsrc ! videoconvert ! x264enc tune=zerolatency noise-reduction=10000 bitrate=2048 speed-preset=superfast ! rtph264pay config-interval=1 pt=96 ! udpsink host=127.0.0.1 port=58889', fourcc, 30, (1280, 720), True)
+	if not gstout.isOpened():
+		print('VideoWriter not opened')
+		sys.exit(0)
+
+
 
 def compute_fps(curr_time, last_time, dequeued_frames_dict):
 	if curr_time != last_time:
@@ -293,6 +344,25 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 				in_h265r.getData().tofile(videorightFile)	# appends the packet data to the opened file
 			if args.wls_filter or args.rectified_right:
 				in_h265rr.getData().tofile(videorrFile)		# appends the packet data to the opened file
+				'''
+				rr_nv12 = in_h265rr.getData()
+				rr_nv12.tofile(videorrFile)			# appends the packet data to the opened file
+				print(type(rr_nv12), len(rr_nv12))
+				'''
+				if args_websocket:
+					data   = pickle.dumps(rr_nv12)
+					header = struct.pack("I", len(data))
+					print(f'{header = }')
+					clientsocket.sendall(header+data)	# https://stackoverflow.com/a/30988516/1396334
+					#clientsocket.sendall(data)	# https://stackoverflow.com/a/30988516/1396334
+				if args_gstreamer:
+					gstout.write(rr_nv12)
+				'''
+				tmpfn = 'rright-h265-' + str(dequeued_frames_dict['rright-h265']) + '.raw'
+				with open(tmpfn,'wb') as tmpfile:
+					print(tmpfn)
+					tmpfile.write(rr_nv12)
+				'''
 
 			curr_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 			last_time = compute_fps(curr_time, last_time, dequeued_frames_dict)
