@@ -36,11 +36,13 @@ with dai.Device(pipeline) as device:
         try:
             last_time = None
             while True:
+                '''
                 print('asdf')
                 curr_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
                 if curr_time != last_time:
                     print(f'{curr_time = }')
                     last_time = curr_time
+                '''
 
                 h264Packet = q.get()  # blocking call, will wait until a new data has arrived
                 h264Packet.getData().tofile(videoFile)  # appends the packet data to the opened file
