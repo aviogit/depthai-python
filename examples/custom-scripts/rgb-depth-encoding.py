@@ -20,6 +20,9 @@ args = argument_parser()
 # Run with:
 # ./rgb-depth-encoding.py --output-dir /tmp --confidence 200 --no-extended-disparity --depth-resolution 720p --wls-filter
 
+# Close to 30 FPS, no depth preview, no RGB, but it should be possible to do WLS filtering offline with just h265 depth and h265 rectified right
+# ./rgb-depth-encoding.py --output-dir /tmp --confidence 200 --no-extended-disparity --depth-resolution 720p --rectified-right --no-write-preview --no-rgb
+
 
 start_time		= datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 color_outfn		= f'{args.output_dir}/color-{start_time}.h265'
