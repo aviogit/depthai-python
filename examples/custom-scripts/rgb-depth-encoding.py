@@ -18,7 +18,11 @@ from argument_parser import argument_parser
 
 from colormaps import apply_colormap
 
-from utils import dequeue, dequeued_frames_dict, datetime_from_string, create_encoder, wlsFilter, apply_wls_filter
+from utils import dequeue, dequeued_frames_dict, datetime_from_string, create_encoder, wlsFilter	#, apply_wls_filter
+
+from multiprocessing.dummy import Pool as ThreadPool
+
+pool = ThreadPool(4)
 
 args = argument_parser()
 
@@ -151,13 +155,15 @@ left.out.link(depth.left)
 right.out.link(depth.right)
 
 
-
-wlsFilter = wlsFilter(args, _lambda=8000, _sigma=1.5)
-
 baseline = 75 #mm
 disp_levels = 96
 fov = 71.86
 
+wlsFilter = wlsFilter(args, _lambda=8000, _sigma=1.5, baseline=baseline, fov=fov, disp_levels=disp_levels)
+
+wls_data    = []	# filtered_disp, colored_disp = pool.map(apply_wls_filter, (disp_imgs, rr_imgs))
+wls_results = []	# filtered_disp, colored_disp = pool.map(apply_wls_filter, (disp_imgs, rr_imgs))
+wls_counter = 0
 
 '''
 class VideoCaptureYUV:
@@ -424,7 +430,20 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 				rr_img    = in_rright.getFrame()
 				rr_img    = cv2.flip(rr_img, flipCode=1)
 				disp_img  = in_depth.getFrame()
-				filtered_disp, colored_disp = apply_wls_filter(wlsFilter, disp_img, rr_img, baseline, fov, disp_levels, args)
+				#results = pool.map(my_function, my_array)
+				#filtered_disp, colored_disp = apply_wls_filter(wlsFilter, disp_img, rr_img, baseline, fov, disp_levels, args)
+				wls_counter += 1
+				wls_data.append((wls_counter, disp_img, rr_img))
+				print(f'{len(wls_data) = }')
+				print(f'Starting apply_wls_filter() thread for item no.: {wls_counter}')
+				wls_results = pool.map(wlsFilter.apply_wls_filter, wls_data)
+				print(f'Finished apply_wls_filter() thread for item no.: {wls_counter}')
+				print(f'{len(wls_results) = }')
+				#wls_counter_out, filtered_disp, colored_disp = wls_results[wls_counter-1]
+				wls_counter_out, filtered_disp, colored_disp = wls_results.pop(0)
+				wls_counter_in,  disp_img, rr_img            = wls_data.pop(0)
+				print(f'Finished apply_wls_filter() thread for item no.: {wls_counter_in = } -> {wls_counter_out}')
+				#wlsFilter.apply_wls_filter(wls_data)
 				if args.write_wls_preview:
 					wls_cap.write(colored_disp)
 				if args.show_wls_preview:
