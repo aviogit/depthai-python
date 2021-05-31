@@ -15,6 +15,8 @@ def define_boolean_argument(parser, var_name, cmd_name, dst_variable, help_str, 
 		#exec("print(%s)" % var_name)
 
 def var2opt(dst_variable):
+	if '-' in dst_variable:
+		raise Exception(f'Error parsing variable: {dst_variable} - Boolean variable names cannot contain dashes `-`')
 	return dst_variable, dst_variable.replace('_', '-'), dst_variable
 
 def argument_parser():
