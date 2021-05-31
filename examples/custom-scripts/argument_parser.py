@@ -48,6 +48,7 @@ depth_resolutions = {
 	define_boolean_argument(parser, *var2opt('wls_filter'),			'apply WLS filter to disparity and save a separate CV2 video'			, False)
 	define_boolean_argument(parser, *var2opt('rectified_right'),		'WLS filter is too slow on RPI4 (2 to 4 FPS), just record h265 rectified right for later use', False)
 	define_boolean_argument(parser, *var2opt('rgb'),			'record RGB color h265 stream', True)
+	parser.add_argument('--wls-max-queue',  type=int, default=10.0,		help="drop frames after wls queue has reached max_queue")
 
 	# ------------------
 	# -- OUTPUT FILES --

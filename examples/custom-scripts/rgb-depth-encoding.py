@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import cv2
 import sys
 import time
@@ -18,7 +19,16 @@ from argument_parser import argument_parser
 
 from colormaps import apply_colormap
 
-from utils import dequeue, dequeued_frames_dict, datetime_from_string, create_encoder, wlsFilter, apply_wls_filter
+from utils import dequeue, dequeued_frames_dict, datetime_from_string, create_encoder, wlsFilter	#, apply_wls_filter
+
+'''
+from multiprocessing.dummy import Pool as ThreadPool
+
+pool = ThreadPool(4)
+'''
+
+import multiprocessing
+
 
 args = argument_parser()
 
@@ -151,12 +161,37 @@ left.out.link(depth.left)
 right.out.link(depth.right)
 
 
-
-wlsFilter = wlsFilter(args, _lambda=8000, _sigma=1.5)
-
 baseline = 75 #mm
 disp_levels = 96
 fov = 71.86
+
+wlsFilter = wlsFilter(args, _lambda=8000, _sigma=1.5, baseline=baseline, fov=fov, disp_levels=disp_levels)
+
+wls_queue = multiprocessing.Queue()
+
+wls_data    = []	# filtered_disp, colored_disp = pool.map(apply_wls_filter, (disp_imgs, rr_imgs))
+wls_results = []
+wls_counter = 0
+
+def wls_worker(queue, wlsFilter):
+	print(f'Thread {os.getpid()} starting...')
+	while True:
+		print(f'Thread {os.getpid()} dequeuing...')
+		item = queue.get(True)
+		print(f'Thread {os.getpid()} got item {type(item)}...')
+		wls_counter, disp_img, rr_img = item
+		print(f'Thread {os.getpid()} got frames no: {wls_counter} - {disp_img.shape} - {rr_img.shape}...')
+		wls_data = (wls_counter, disp_img, rr_img)
+		wls_counter_out, filtered_disp, colored_disp = wlsFilter.apply_wls_filter(wls_data)
+		print(f'Thread {os.getpid()} completed frames no: {wls_counter} ({wls_counter_out}) - {disp_img.shape} - {rr_img.shape}...')
+		if True or args.write_wls_preview:
+			wls_cap.write(colored_disp)
+
+no_of_wls_threads = 3
+th_pool = multiprocessing.Pool(no_of_wls_threads, wls_worker, (wls_queue, wlsFilter, ))
+#                                                     don't forget the comma here  ^
+
+
 
 
 '''
@@ -424,12 +459,36 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 				rr_img    = in_rright.getFrame()
 				rr_img    = cv2.flip(rr_img, flipCode=1)
 				disp_img  = in_depth.getFrame()
-				filtered_disp, colored_disp = apply_wls_filter(wlsFilter, disp_img, rr_img, baseline, fov, disp_levels, args)
-				if args.write_wls_preview:
-					wls_cap.write(colored_disp)
-				if args.show_wls_preview:
-					if cv2.waitKey(1) == ord('q'):
-						break
+				#results = pool.map(my_function, my_array)
+				#filtered_disp, colored_disp = apply_wls_filter(wlsFilter, disp_img, rr_img, baseline, fov, disp_levels, args)
+
+				if args.wls_max_queue == 0 or wls_queue.qsize() < args.wls_max_queue: 
+					wls_counter += 1
+					print(f'Main thread enqueuing frame no: {wls_counter} because queue size is: {wls_queue.qsize()}...')
+					wls_queue.put((wls_counter, disp_img, rr_img))
+				'''
+				if len(wls_data) <= 20:
+					wls_counter += 1
+					wls_data.append((wls_counter, disp_img, rr_img))
+					print(f'{len(wls_data) = }')
+				if len(wls_data) >= 10:
+					print(f'Starting apply_wls_filter() thread for item no.: {wls_counter}')
+					wls_results = pool.map(wlsFilter.apply_wls_filter, wls_data)
+					print(f'Finished apply_wls_filter() thread for item no.: {wls_counter}')
+					print(f'{len(wls_results) = }')
+				if len(wls_results) >= 10:
+				#wls_counter_out, filtered_disp, colored_disp = wls_results[wls_counter-1]
+					while len(wls_results) > 0:
+						wls_counter_out, filtered_disp, colored_disp = wls_results.pop(0)
+						wls_counter_in,  disp_img, rr_img            = wls_data.pop(0)
+						print(f'Finished apply_wls_filter() thread for item no.: {wls_counter_in = } -> {wls_counter_out}')
+						#wlsFilter.apply_wls_filter(wls_data)
+						if args.write_wls_preview:
+							wls_cap.write(colored_disp)
+						if args.show_wls_preview:
+							if cv2.waitKey(1) == ord('q'):
+								break
+				'''
 
 			cmap_counter += 1
 
