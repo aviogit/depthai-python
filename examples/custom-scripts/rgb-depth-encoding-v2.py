@@ -106,10 +106,13 @@ depth.setConfidenceThreshold(args.confidence)
 depth.setRectifyEdgeFillColor(0)	# Black, to better see the cutout from rectification (black stripe on the edges)
 depth.setLeftRightCheck(False)
 
-if args.wls_filter or args.rectified_right:
+if args.wls_filter: #or args.rectified_right or args.rectified_left:
 	xoutRectifiedRight = pipeline.createXLinkOut()
 	xoutRectifiedRight.setStreamName("rectifiedRight")
 	depth.rectifiedRight.link(xoutRectifiedRight.input)
+	xoutRectifiedLeft = pipeline.createXLinkOut()
+	xoutRectifiedLeft.setStreamName("rectifiedLeft")
+	depth.rectifiedLeft.link(xoutRectifiedLeft.input)
 	if args.write_wls_preview:
 		wls_cap = cv2.VideoWriter(wls_outfn, cv2.VideoWriter.fourcc('M','J','P','G'), depth_fps, (depth_width, depth_height))
 		#cv2.VideoWriter_fourcc(*"MJPG"), 30,(640,480))
@@ -160,24 +163,22 @@ def wls_worker(queue, wlsFilter):
 			wls_cap.write(colored_disp)
 
 no_of_wls_threads = 8
-wlsFilter         = None
+wls_filter        = None
 wls_queue         = None
 th_pool           = None
 if args.wls_filter:
-	wlsFilter = wlsFilter(args, _lambda=8000, _sigma=1.5, baseline=baseline, fov=fov, disp_levels=disp_levels)
-	wls_queue = multiprocessing.Queue()
-	th_pool = multiprocessing.Pool(no_of_wls_threads, wls_worker, (wls_queue, wlsFilter, ))
+	wls_filter = wlsFilter(args, _lambda=8000, _sigma=1.5, baseline=baseline, fov=fov, disp_levels=disp_levels)
+	wls_queue  = multiprocessing.Queue()
+	th_pool    = multiprocessing.Pool(no_of_wls_threads, wls_worker, (wls_queue, wls_filter, ))
 	#                                                     don't forget the comma here  ^
 
 
 
 
 
-if (args.show_preview or args.write_preview) and args.disparity:
+if args.wls_filter:
 	# Create output
-	#xout_rgb = pipeline.createXLinkOut()
 	xout_dep = pipeline.createXLinkOut()
-	#xout_rgb.setStreamName("rgb")
 	xout_dep.setStreamName("disparity")
 	
 	if args.debug_pipeline_types:
@@ -187,11 +188,7 @@ if (args.show_preview or args.write_preview) and args.disparity:
 		print(f'{type(depth) = } - {depth = }')
 		print(f'{type(depth.disparity) = } - {depth.disparity = }')
 	
-	#cam_rgb.preview.link(xout_rgb.input)
 	depth.disparity.link(xout_dep.input)
-	
-	#cam_rgb.video.link(xout_rgb.input)
-	#depth.video.link(xout_dep.input)
 
 
 
@@ -229,10 +226,9 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 	# Start pipeline
 	device.startPipeline()
 
-	if (args.show_preview or args.write_preview) and args.disparity:
+	if args.wls_filter:
 		# Output queue will be used to get the rgb frames from the output defined above
-		#q_rgb  = device.getOutputQueue(name="rgb",		maxSize=4,	blocking=False)
-		q_dep  = device.getOutputQueue(name="disparity",	maxSize=4,	blocking=False)
+		q_dep  = device.getOutputQueue(name="disparity",	maxSize=30,	blocking=False)
 
 	# Output queue will be used to get the encoded data from the output defined above
 	if args.rgb:
@@ -285,18 +281,20 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 
 		while True:
 			if write_rgb_h265:
-				in_h265c  = dequeue(q_265c,  'rgb-h265'   , args.debug_pipeline_steps, 3, debug=False)
+				in_h265c  = dequeue(q_265c,  'rgb-h265'   , args.debug_pipeline_steps, 1, debug=False)
 			if use_wls_filter or write_rright_h265:
-				in_h265rr = dequeue(q_265rr, 'rright-h265', args.debug_pipeline_steps, 4, debug=False)
+				in_h265rr = dequeue(q_265rr, 'rright-h265', args.debug_pipeline_steps, 2, debug=False)
 			if use_wls_filter or write_rleft_h265:
-				in_h265rl = dequeue(q_265rl, 'rleft-h265' , args.debug_pipeline_steps, 5, debug=False)
+				in_h265rl = dequeue(q_265rl, 'rleft-h265' , args.debug_pipeline_steps, 3, debug=False)
 			if write_disp_h265:
-				in_h265d  = dequeue(q_265d,  'depth-h265' , args.debug_pipeline_steps, 6, debug=False)
+				in_h265d  = dequeue(q_265d,  'depth-h265' , args.debug_pipeline_steps, 4, debug=False)
 			else:
-				in_h265l  = dequeue(q_265l,  'left-h265'  , args.debug_pipeline_steps, 7, debug=False)
-				in_h265r  = dequeue(q_265r,  'right-h265' , args.debug_pipeline_steps, 8, debug=False)
+				in_h265l  = dequeue(q_265l,  'left-h265'  , args.debug_pipeline_steps, 5, debug=False)
+				in_h265r  = dequeue(q_265r,  'right-h265' , args.debug_pipeline_steps, 6, debug=False)
+			if use_wls_filter:
+				in_depth  = dequeue(q_dep, 'depth-preview', args.debug_pipeline_steps, 7, debug=False)
 			if args.debug_pipeline_steps:
-				print('9. all queues done')
+				print('8. all queues done')
 
 			if write_rgb_h265:
 				in_h265c.getData().tofile(videorgbFile)		# appends the packet data to the opened file
