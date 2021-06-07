@@ -141,10 +141,6 @@ baseline = 75 #mm
 disp_levels = 96
 fov = 71.86
 
-wlsFilter = wlsFilter(args, _lambda=8000, _sigma=1.5, baseline=baseline, fov=fov, disp_levels=disp_levels)
-
-wls_queue = multiprocessing.Queue()
-
 wls_data    = []	# filtered_disp, colored_disp = pool.map(apply_wls_filter, (disp_imgs, rr_imgs))
 wls_results = []
 wls_counter = 0
@@ -164,8 +160,14 @@ def wls_worker(queue, wlsFilter):
 			wls_cap.write(colored_disp)
 
 no_of_wls_threads = 8
-th_pool = multiprocessing.Pool(no_of_wls_threads, wls_worker, (wls_queue, wlsFilter, ))
-#                                                     don't forget the comma here  ^
+wlsFilter         = None
+wls_queue         = None
+th_pool           = None
+if args.wls_filter:
+	wlsFilter = wlsFilter(args, _lambda=8000, _sigma=1.5, baseline=baseline, fov=fov, disp_levels=disp_levels)
+	wls_queue = multiprocessing.Queue()
+	th_pool = multiprocessing.Pool(no_of_wls_threads, wls_worker, (wls_queue, wlsFilter, ))
+	#                                                     don't forget the comma here  ^
 
 
 
@@ -204,7 +206,7 @@ else:
 if args.wls_filter or args.rectified_right:
 	videorrEncoder,    videorrOut   = create_encoder(pipeline, depth.rectifiedRight, depth_resolution, 'h265_rr')
 if args.wls_filter or args.rectified_left:
-	videorrEncoder,    videorrOut   = create_encoder(pipeline, depth.rectifiedLeft,  depth_resolution, 'h265_rl')
+	videorlEncoder,    videorlOut   = create_encoder(pipeline, depth.rectifiedLeft,  depth_resolution, 'h265_rl')
 
 
 
@@ -242,8 +244,8 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 		q_265r = device.getOutputQueue(name="h265_right",	maxSize=30,	blocking=False)
 
 	if args.wls_filter:
-		q_rright = device.getOutputQueue(name="rectifiedRight",	maxSize=4,	blocking=False)
-		q_rleft  = device.getOutputQueue(name="rectifiedLeft",	maxSize=4,	blocking=False)
+		q_rright = device.getOutputQueue(name="rectifiedRight",	maxSize=30,	blocking=False)
+		q_rleft  = device.getOutputQueue(name="rectifiedLeft",	maxSize=30,	blocking=False)
 	if args.rectified_right:
 		q_265rr  = device.getOutputQueue(name="h265_rr",	maxSize=30,	blocking=False)
 	if args.rectified_left:
