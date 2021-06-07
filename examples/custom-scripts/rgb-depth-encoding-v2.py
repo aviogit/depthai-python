@@ -76,6 +76,7 @@ if args.rgb:
 	cam_rgb.setResolution(color_profile)
 	cam_rgb.setInterleaved(False)
 	cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.RGB)
+	cam_rgb.setFps(color_fps)
 
 '''
 cam_rgb.initialControl.setManualFocus(130)
@@ -89,29 +90,20 @@ cam_rgb.initialControl.setAutoFocusMode(dai.RawCameraControl.AutoFocusMode.OFF)
 left = pipeline.createMonoCamera()
 left.setResolution(dprofile)
 left.setBoardSocket(dai.CameraBoardSocket.LEFT)
+left.setFps(depth_fps)
 
 right = pipeline.createMonoCamera()
 right.setResolution(dprofile)
 right.setBoardSocket(dai.CameraBoardSocket.RIGHT)
-
+right.setFps(depth_fps)
 
 # Create a node that will produce the depth map (using disparity output as it's easier to visualize depth this way)
 depth = pipeline.createStereoDepth()
 depth.setConfidenceThreshold(args.confidence)
 
-#median = dai.StereoDepthProperties.MedianFilter.KERNEL_7x7 # For depth filtering
-#depth.setMedianFilter(median)
-
-#depth.setExtendedDisparity(args.extended_disparity)
 #depth.setOutputRectified(True)		# The rectified streams are horizontally mirrored by default
-#depth.setOutputDepth(False)
 depth.setRectifyEdgeFillColor(0)	# Black, to better see the cutout from rectification (black stripe on the edges)
 depth.setLeftRightCheck(False)
-
-# Normal disparity values range from 0..95, will be used for normalization
-max_disparity = 95
-
-
 
 if args.wls_filter or args.rectified_right:
 	xoutRectifiedRight = pipeline.createXLinkOut()
@@ -178,21 +170,6 @@ th_pool = multiprocessing.Pool(no_of_wls_threads, wls_worker, (wls_queue, wlsFil
 
 
 
-args_websocket = False
-if args_websocket:
-	#host_port = ('zapp-brannigan.ge.imati.cnr.it', 58889)
-	host_port = ('localhost', 58889)
-	clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	clientsocket.connect(host_port )
-
-
-
-
-
-
-
-
-
 if (args.show_preview or args.write_preview) and args.disparity:
 	# Create output
 	#xout_rgb = pipeline.createXLinkOut()
@@ -225,6 +202,8 @@ else:
 	videorightEncoder, videorightOut= create_encoder(pipeline, depth.syncedRight,    depth_resolution, 'h265_right')
 if args.wls_filter or args.rectified_right:
 	videorrEncoder,    videorrOut   = create_encoder(pipeline, depth.rectifiedRight, depth_resolution, 'h265_rr')
+if args.wls_filter or args.rectified_left:
+	videorrEncoder,    videorrOut   = create_encoder(pipeline, depth.rectifiedLeft,  depth_resolution, 'h265_rl')
 
 
 
