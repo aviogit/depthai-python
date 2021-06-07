@@ -47,6 +47,7 @@ depth_resolutions = {
 	parser.add_argument('--depth-resolution', default='400p',		help='captured videos depth resolution (800p @ 60 FPS or 720p @ 60 FPS or 400p @ 120 FPS)')
 	define_boolean_argument(parser, *var2opt('wls_filter'),			'apply WLS filter to disparity and save a separate CV2 video'			, False)
 	define_boolean_argument(parser, *var2opt('rectified_right'),		'WLS filter is too slow on RPI4 (2 to 4 FPS), just record h265 rectified right for later use', False)
+	define_boolean_argument(parser, *var2opt('rectified_left'),		'Also record h265 rectified left for later use with different disparity algorithms', False)
 	define_boolean_argument(parser, *var2opt('rgb'),			'record RGB color h265 stream', True)
 	parser.add_argument('--wls-max-queue',  type=int, default=10.0,		help="drop frames after wls queue has reached max_queue")
 
