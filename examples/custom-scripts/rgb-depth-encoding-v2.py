@@ -28,9 +28,15 @@ args = argument_parser()
 
 # Run with:
 # ./rgb-depth-encoding.py --confidence 200 --no-extended-disparity --depth-resolution 720p --wls-filter
+# ./rgb-depth-encoding-v2.py --confidence 200 --no-extended-disparity --depth-resolution 720p --rectified-left --rectified-right --no-write-preview --no-rgb --wls-filter
 
-# Close to 30 FPS, no depth preview, no RGB, but it should be possible to do WLS filtering offline with just h265 depth and h265 rectified right
 # ./rgb-depth-encoding.py --confidence 200 --no-extended-disparity --depth-resolution 720p --rectified-right --no-write-preview --no-rgb
+
+# v2 - 60 FPS with rectified-right + rectified-left + disparity
+# ./rgb-depth-encoding-v2.py --confidence 200 --no-extended-disparity --depth-resolution 720p --rectified-left --rectified-right --no-write-preview --no-rgb
+
+# v2 - 46.5 FPS with rectified-right + disparity + RGB 1080p
+# ./rgb-depth-encoding-v2.py --confidence 200 --no-extended-disparity --depth-resolution 720p --rectified-right --no-write-preview
 
 
 
