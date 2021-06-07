@@ -285,14 +285,14 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 			if write_rgb_h265:
 				in_h265c  = dequeue(q_265c,  'rgb-h265'   , args.debug_pipeline_steps, 3, debug=False)
 			if use_wls_filter or write_rright_h265:
-				in_h265rr = dequeue(q_265rr, 'rright-h265', args.debug_pipeline_steps, 7, debug=False)
+				in_h265rr = dequeue(q_265rr, 'rright-h265', args.debug_pipeline_steps, 4, debug=False)
 			if use_wls_filter or write_rleft_h265:
-				in_h265rl = dequeue(q_265rl, 'rleft-h265' , args.debug_pipeline_steps, 8, debug=False)
+				in_h265rl = dequeue(q_265rl, 'rleft-h265' , args.debug_pipeline_steps, 5, debug=False)
 			if write_disp_h265:
-				in_h265d  = dequeue(q_265d,  'depth-h265' , args.debug_pipeline_steps, 4, debug=False)
+				in_h265d  = dequeue(q_265d,  'depth-h265' , args.debug_pipeline_steps, 6, debug=False)
 			else:
-				in_h265l  = dequeue(q_265l,  'left-h265'  , args.debug_pipeline_steps, 5, debug=False)
-				in_h265r  = dequeue(q_265r,  'right-h265' , args.debug_pipeline_steps, 6, debug=False)
+				in_h265l  = dequeue(q_265l,  'left-h265'  , args.debug_pipeline_steps, 7, debug=False)
+				in_h265r  = dequeue(q_265r,  'right-h265' , args.debug_pipeline_steps, 8, debug=False)
 			if args.debug_pipeline_steps:
 				print('9. all queues done')
 
