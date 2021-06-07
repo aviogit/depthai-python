@@ -242,8 +242,8 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 		q_265r = device.getOutputQueue(name="h265_right",	maxSize=30,	blocking=False)
 
 	if args.wls_filter:
-		q_rright = device.getOutputQueue(name="rectifiedRight",	maxSize=4,	blocking=False)
-		q_rleft  = device.getOutputQueue(name="rectifiedLeft",	maxSize=4,	blocking=False)
+		q_rright = device.getOutputQueue(name="rectifiedRight",	maxSize=4,	blocking=True)
+		q_rleft  = device.getOutputQueue(name="rectifiedLeft",	maxSize=4,	blocking=True)
 	if args.rectified_right:
 		q_265rr  = device.getOutputQueue(name="h265_rr",	maxSize=30,	blocking=False)
 	if args.rectified_left:
