@@ -265,7 +265,7 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 	if args.wls_filter or args.rectified_right:
 		videorrFile	= open(rr_outfn,   'wb')
 	if args.wls_filter or args.rectified_left:
-		videorrFile	= open(rl_outfn,   'wb')
+		videorlFile	= open(rl_outfn,   'wb')
 
 	print("Press Ctrl+C to stop encoding...")
 	try:
