@@ -122,7 +122,7 @@ def apply_wls_filter(wlsFilter, disp_img, r_img, baseline, fov, disp_levels, arg
 	return filtered_disp, colored_disp
 '''
 
-def compute_fps(curr_time, last_time, dequeued_frames_dict):
+def compute_fps(curr_time, last_time, start_capture_time, dequeued_frames_dict):
 	if curr_time != last_time:
 		#print(f'{curr_time = }')
 		last_time = curr_time

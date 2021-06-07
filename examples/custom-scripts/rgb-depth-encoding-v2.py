@@ -296,7 +296,7 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 				in_h265rr.getData().tofile(videorrFile)		# appends the packet data to the opened file
 
 			curr_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-			last_time = compute_fps(curr_time, last_time, dequeued_frames_dict)
+			last_time = compute_fps(curr_time, last_time, start_capture_time, dequeued_frames_dict)
 
 			if False:
 				# data is originally represented as a flat 1D array, it needs to be converted into HxW form
