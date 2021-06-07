@@ -39,7 +39,9 @@ class wlsFilter:
 		self.disp_levels = disp_levels
 		self.args        = args
 
-		self.wlsFilter = cv2.ximgproc.createDisparityWLSFilterGeneric(False)
+		self.wlsFilter   = cv2.ximgproc.createDisparityWLSFilterGeneric(False)
+
+		self.debug       = False
 
 		if args.show_wls_preview:
 			cv2.namedWindow(self.wlsStream)
@@ -62,7 +64,8 @@ class wlsFilter:
 
 		return filteredDisp, depthFrame
 	def apply_wls_filter(self, wls_data_item):
-		print(type(wls_data_item))
+		if self.debug:
+			print(type(wls_data_item))
 		counter, disp_img, rr_img = wls_data_item
 		print(f'Running apply_wls_filter() thread for item no.: {counter} and imgs: {disp_img.shape} - {rr_img.shape}')
 		focal = disp_img.shape[1] / (2. * math.tan(math.radians(self.fov / 2)))
