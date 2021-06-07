@@ -121,3 +121,21 @@ def apply_wls_filter(wlsFilter, disp_img, r_img, baseline, fov, disp_levels, arg
 
 	return filtered_disp, colored_disp
 '''
+
+def compute_fps(curr_time, last_time, dequeued_frames_dict):
+	if curr_time != last_time:
+		#print(f'{curr_time = }')
+		last_time = curr_time
+		curr_time = datetime.now()
+		run_time = curr_time - datetime_from_string(start_capture_time)
+		display_str = ''
+		for stream, frames in dequeued_frames_dict.items():
+			if run_time.total_seconds() == 0:
+				break
+			microseconds = run_time.seconds * 1000000 + run_time.microseconds
+			fps = frames*1000000/microseconds
+			if display_str != '':
+				display_str += ' - '
+			display_str += stream + ' ' + str(frames) + ' ' + f'{fps:.2f}'
+		print(display_str)
+	return last_time
