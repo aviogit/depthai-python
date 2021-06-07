@@ -38,6 +38,7 @@ start_time		= datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 color_outfn		= f'{args.output_dir}/color-{start_time}.h265'
 wls_outfn		= f'{args.output_dir}/wls-{start_time}.avi'
 rr_outfn		= f'{args.output_dir}/rectright-{start_time}.h265'
+rl_outfn		= f'{args.output_dir}/rectleft-{start_time}.h265'
 if args.disparity:
 	depth_outfn	= f'{args.output_dir}/depth-{start_time}.h265'
 else:
@@ -240,9 +241,13 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 		q_265l = device.getOutputQueue(name="h265_left",	maxSize=30,	blocking=False)
 		q_265r = device.getOutputQueue(name="h265_right",	maxSize=30,	blocking=False)
 
-	if args.wls_filter or args.rectified_right:
+	if args.wls_filter:
 		q_rright = device.getOutputQueue(name="rectifiedRight",	maxSize=4,	blocking=False)
+		q_rleft  = device.getOutputQueue(name="rectifiedLeft",	maxSize=4,	blocking=False)
+	if args.rectified_right:
 		q_265rr  = device.getOutputQueue(name="h265_rr",	maxSize=30,	blocking=False)
+	if args.rectified_left:
+		q_265rl  = device.getOutputQueue(name="h265_rl",	maxSize=30,	blocking=False)
 
 
 	cmap_counter = 0
@@ -259,6 +264,8 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 		videorightFile	= open(right_outfn,'wb')
 	if args.wls_filter or args.rectified_right:
 		videorrFile	= open(rr_outfn,   'wb')
+	if args.wls_filter or args.rectified_left:
+		videorrFile	= open(rl_outfn,   'wb')
 
 	print("Press Ctrl+C to stop encoding...")
 	try:
@@ -270,7 +277,9 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 		write_disp_h265 	= args.disparity
 		use_wls_filter		= args.wls_filter
 		write_rright_h265	= args.rectified_right
+		write_rleft_h265	= args.rectified_left
 		debug_pipeline_steps	= args.debug_pipeline_steps
+		show_preview		= args.show_preview
 
 		while True:
 			if write_rgb_h265:
@@ -282,6 +291,8 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 				in_h265r  = dequeue(q_265r, 'right-h265'  , args.debug_pipeline_steps, 6, debug=False)
 			if use_wls_filter or write_rright_h265:
 				in_h265rr = dequeue(q_265rr, 'rright-h265', args.debug_pipeline_steps, 7, debug=False)
+			if use_wls_filter or write_rleft_h265:
+				in_h265rl = dequeue(q_265rl, 'rright-h265', args.debug_pipeline_steps, 7, debug=False)
 			if args.debug_pipeline_steps:
 				print('8. all queues done')
 
@@ -294,11 +305,13 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 				in_h265r.getData().tofile(videorightFile)	# appends the packet data to the opened file
 			if use_wls_filter or write_rright_h265:
 				in_h265rr.getData().tofile(videorrFile)		# appends the packet data to the opened file
+			if use_wls_filter or write_rleft_h265:
+				in_h265rl.getData().tofile(videorlFile)		# appends the packet data to the opened file
 
 			curr_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 			last_time = compute_fps(curr_time, last_time, start_capture_time, dequeued_frames_dict)
 
-			if False:
+			if show_preview:
 				# data is originally represented as a flat 1D array, it needs to be converted into HxW form
 				depth_h, depth_w = in_depth.getHeight(), in_depth.getWidth()
 				if args.debug_img_sizes:
