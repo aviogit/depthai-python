@@ -292,9 +292,9 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 			if use_wls_filter or write_rright_h265:
 				in_h265rr = dequeue(q_265rr, 'rright-h265', args.debug_pipeline_steps, 7, debug=False)
 			if use_wls_filter or write_rleft_h265:
-				in_h265rl = dequeue(q_265rl, 'rright-h265', args.debug_pipeline_steps, 7, debug=False)
+				in_h265rl = dequeue(q_265rl, 'rleft-h265' , args.debug_pipeline_steps, 8, debug=False)
 			if args.debug_pipeline_steps:
-				print('8. all queues done')
+				print('9. all queues done')
 
 			if write_rgb_h265:
 				in_h265c.getData().tofile(videorgbFile)		# appends the packet data to the opened file
