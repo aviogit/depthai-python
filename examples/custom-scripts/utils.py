@@ -9,12 +9,12 @@ def datetime_from_string(str_time):
 	return datetime.strptime(str_time, '%Y-%m-%d-%H-%M-%S')
 
 dequeued_frames_dict = dict()
-def dequeue(queue, name, args, dbg_step=0, debug=False):
+def dequeue(queue, name, debug_pipeline_steps, dbg_step=0, debug=False):
 	if name in dequeued_frames_dict:
 		dequeued_frames_dict[name] += 1
 	else:
 		dequeued_frames_dict[name] = 1
-	if debug or args.debug_pipeline_steps:
+	if debug or debug_pipeline_steps:
 		curr_time = datetime.now().strftime('%Y-%m-%d %H-%M-%S.%f')
 		print(f'{dbg_step}. {curr_time}')
 	pkt = queue.get()	# blocking call, will wait until a new data has arrived
