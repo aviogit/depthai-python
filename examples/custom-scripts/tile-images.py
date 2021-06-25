@@ -41,8 +41,8 @@ if args.dir is not None:
 
 	for fn in search_path.glob('*.jpg'):
 		img_fn = str(Path(fn).stem)
-		print(f'Tiling img {img_fn} with size: {img.shape} - tile size: {tile_size} - offset: {offset}')
 		img    = cv2.imread(str(fn))
+		print(f'Tiling img {img_fn} with size: {img.shape} - tile size: {tile_size} - offset: {offset}')
 		tile(img, tile_size, offset, img_fn)
 
 
