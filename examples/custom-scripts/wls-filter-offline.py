@@ -114,6 +114,10 @@ while depth_cap.isOpened() and rright_cap.isOpened():
 
 	dret,  dframe	= depth_cap.read()
 	rrret, rrframe	= rright_cap.read()
+	if dframe is None or rrframe is None:
+		continue
+	if dframe is None and rrframe is None:
+		break
 	small_size	= (dframe.shape[1], dframe.shape[0])
 
 	if debug:
