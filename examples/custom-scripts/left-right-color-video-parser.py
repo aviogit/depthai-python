@@ -35,7 +35,7 @@ if args.prefix is None:
 if args.rectright:
 	main_fn	= glob.glob(f'rectright-{args.prefix}*h265*')
 else:
-	main_fn = f'color-{args.prefix}.h265'
+	main_fn	= glob.glob(f'color-{args.prefix}*h265*')
 print(f'Found main file(s): {main_fn}')
 main_fn = main_fn[0]
 print(f'Opening main file: {main_fn}')
@@ -47,7 +47,6 @@ if args.disparity:
 	print(f'{caplen = } - {depth_len = }')
 elif args.wls_disparity:
 	wls_fn		= glob.glob(f'wls-{args.prefix}*')
-	#disp_fn		= f'wls-{args.prefix}.avi'
 	print(f'Found disparity file(s): {wls_fn}')
 	wls_fn		= wls_fn[0]
 	print(f'Opening disparity file: {wls_fn}')
@@ -116,15 +115,11 @@ while cap.isOpened():
 		lret, lframe = left_cap.read()
 		rret, rframe = right_cap.read()
 
-	#print(f'{cframe.shape} - {lframe.shape} - {rframe.shape}')
 
 	cframe   = cv2.resize(cframe, small_size)
-	#print(f'{small_size[1]/4} - {lframe.shape[1]}')
-	#cframe_s = cframe[int(small_size[0]/4):cframe.shape[1], :]
 	cframe_s = get_quarter_img(cframe, show_quarter_img)
 
 	if args.disparity:
-		#dframe_s = dframe[int(small_size[0]/4):dframe.shape[1], :]
 		dframe_s = get_quarter_img(dframe, show_quarter_img)
 		dframe_s = cv2.medianBlur(dframe_s, 5)
 		dframe_s = cv2.normalize(dframe_s, None, 0, 255, cv2.NORM_MINMAX)
@@ -135,14 +130,11 @@ while cap.isOpened():
 		wframe_s = get_quarter_img(wframe, show_quarter_img)
 		combo = np.concatenate((cframe_s, wframe_s), axis=0)
 	else:
-		#lframe_s = lframe[int(small_size[0]/4):lframe.shape[1], :]
-		#rframe_s = rframe[int(small_size[0]/4):rframe.shape[1], :]
 		lframe_s = get_quarter_img(lframe, show_quarter_img)
 		rframe_s = get_quarter_img(rframe, show_quarter_img)
 		combo = np.concatenate((lframe_s, cframe_s), axis=0)
 		combo = np.concatenate((combo,    rframe_s), axis=0)
 
-	#print(f'{cframe_s.shape} - {lframe_s.shape} - {rframe_s.shape}')
 
 	cv2.imshow('frame', combo)
 
