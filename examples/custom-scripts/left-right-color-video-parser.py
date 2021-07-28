@@ -2,6 +2,7 @@
 
 import sys
 import cv2
+import glob
 import argparse
 import datetime
 import numpy as np
@@ -24,28 +25,44 @@ parser.add_argument('--prefix', nargs='?', help="color-/left-/right-<prefix>.h26
 parser.add_argument('--start-frame', default=0, type=int, help='start frame for start replaying the video triplet')
 define_boolean_argument(parser, *var2opt('disparity'), 'capture disparity instead of left/right streams', False)
 define_boolean_argument(parser, *var2opt('wls_disparity'), 'capture wls disparity instead of left/right or normal disparity streams', True)
+define_boolean_argument(parser, *var2opt('rectright'), 'capture rectright instead of color stream', True)
 args = parser.parse_args()
 
 if args.prefix is None:
 	print(f'Please specify a valid prefix for video files. Exiting...')
 	sys.exit(0)
 
-color_cap		= cv2.VideoCapture(f'color-{args.prefix}.h265')
-color_len		= int(color_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+if args.rectright:
+	main_fn	= glob.glob(f'rectright-{args.prefix}*h265*')
+else:
+	main_fn = f'color-{args.prefix}.h265'
+print(f'Found main file(s): {main_fn}')
+main_fn = main_fn[0]
+print(f'Opening main file: {main_fn}')
+cap			= cv2.VideoCapture(f'{main_fn}')
+caplen			= int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 if args.disparity:
 	depth_cap	= cv2.VideoCapture(f'depth-{args.prefix}.h265')
 	depth_len	= int(depth_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-	print(f'{color_len = } - {depth_len = }')
+	print(f'{caplen = } - {depth_len = }')
 elif args.wls_disparity:
-	wls_cap		= cv2.VideoCapture(f'wls-{args.prefix}.avi')
+	wls_fn		= glob.glob(f'wls-{args.prefix}*')
+	#disp_fn		= f'wls-{args.prefix}.avi'
+	print(f'Found disparity file(s): {wls_fn}')
+	wls_fn		= wls_fn[0]
+	print(f'Opening disparity file: {wls_fn}')
+	wls_cap		= cv2.VideoCapture(f'{wls_fn}')
 	wls_len		= int(wls_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-	print(f'{color_len = } - {wls_len = }')
+	print(f'{caplen = } - {wls_len = }')
 else:
-	left_cap	= cv2.VideoCapture(f'left-{args.prefix}.h265')
+	left_fn		= f'left-{args.prefix}.h265'
+	right_fn	= f'right-{args.prefix}.h265'
+	print(f'Opening left/right files: {left_fn}/{right_fn}')
+	left_cap	= cv2.VideoCapture(f'{left_fn}')
 	left_len	= int(left_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-	right_cap	= cv2.VideoCapture(f'right-{args.prefix}.h265')
+	right_cap	= cv2.VideoCapture(f'{right_fn}')
 	right_len	= int(right_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-	print(f'{color_len = } - {left_len = } - {right_len = }')
+	print(f'{caplen = } - {left_len = } - {right_len = }')
 
 #small_size = (1280, 720)
 small_size = (640, 400)
@@ -57,7 +74,7 @@ pause = False
 
 if args.start_frame != 0:
 	print(f'Start frame: {args.start_frame}')
-	color_cap.set(cv2.CAP_PROP_POS_FRAMES, args.start_frame-1)
+	cap.set(cv2.CAP_PROP_POS_FRAMES, args.start_frame-1)
 	if args.disparity:
 		depth_cap.set(cv2.CAP_PROP_POS_FRAMES, args.start_frame-1)
 	elif args.wls_disparity:
@@ -66,7 +83,7 @@ if args.start_frame != 0:
 		left_cap.set(cv2.CAP_PROP_POS_FRAMES, args.start_frame-1)
 		right_cap.set(cv2.CAP_PROP_POS_FRAMES, args.start_frame-1)
 
-while color_cap.isOpened():
+while cap.isOpened():
 	if args.disparity:
 		if not depth_cap.isOpened():
 			break
@@ -88,7 +105,7 @@ while color_cap.isOpened():
 	if pause:
 		continue
 
-	cret, cframe = color_cap.read()
+	cret, cframe = cap.read()
 	if args.disparity:
 		dret, dframe = depth_cap.read()
 		small_size = (dframe.shape[1], dframe.shape[0])
@@ -129,7 +146,7 @@ while color_cap.isOpened():
 
 	cv2.imshow('frame', combo)
 
-color_cap.release()
+cap.release()
 if args.disparity:
 	depth_cap.release()
 elif args.wls_disparity:
