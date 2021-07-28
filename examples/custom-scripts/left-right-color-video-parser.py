@@ -23,6 +23,7 @@ def get_quarter_img(frame, show_quarter_img):
 parser = argparse.ArgumentParser()
 parser.add_argument('--prefix', nargs='?', help="color-/left-/right-<prefix>.h265 video files will be used")
 parser.add_argument('--start-frame', default=0, type=int, help='start frame for start replaying the video triplet')
+parser.add_argument('--resize', default='', type=str, help='resize image pairs to WxH resolution (e.g. --resize 640x480')
 define_boolean_argument(parser, *var2opt('disparity'), 'capture disparity instead of left/right streams', False)
 define_boolean_argument(parser, *var2opt('wls_disparity'), 'capture wls disparity instead of left/right or normal disparity streams', True)
 define_boolean_argument(parser, *var2opt('rectright'), 'capture rectright instead of color stream', True)
@@ -63,13 +64,9 @@ else:
 	right_len	= int(right_cap.get(cv2.CAP_PROP_FRAME_COUNT))
 	print(f'{caplen = } - {left_len = } - {right_len = }')
 
-#small_size = (1280, 720)
-small_size = (640, 400)
-
 show_quarter_img = False
 
 pause = False
-
 
 if args.start_frame != 0:
 	print(f'Start frame: {args.start_frame}')
@@ -115,7 +112,6 @@ while cap.isOpened():
 		lret, lframe = left_cap.read()
 		rret, rframe = right_cap.read()
 
-
 	cframe   = cv2.resize(cframe, small_size)
 	cframe_s = get_quarter_img(cframe, show_quarter_img)
 
@@ -135,6 +131,14 @@ while cap.isOpened():
 		combo = np.concatenate((lframe_s, cframe_s), axis=0)
 		combo = np.concatenate((combo,    rframe_s), axis=0)
 
+	if args.resize != '':
+		new_size = args.resize.split('x')
+		new_size = [int(x) for x in new_size]
+		#new_size[0] = int(new_size[0]/2)
+		#new_size[0], new_size[1] = new_size[1], new_size[0]
+		print(f'New size: {new_size}')
+		combo = cv2.resize(combo, tuple(new_size))
+		print(combo.shape)
 
 	cv2.imshow('frame', combo)
 
