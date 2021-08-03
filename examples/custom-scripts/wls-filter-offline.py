@@ -64,7 +64,7 @@ elif 'mjpg' in args.format.lower() or 'mjpeg' in args.format.lower():
 	vcodec = 'mjpeg'
 
 wls_outfn = f'wls-{args.prefix}-{vcodec}.mp4'
-depth_fps, depth_width, depth_height =  30, 1280, 720
+depth_fps, depth_width, depth_height =  60, 1280, 720
 #wls_cap = cv2.VideoWriter(wls_outfn, cv2.VideoWriter.fourcc('M','J','P','G'), depth_fps, (depth_width, depth_height))
 #wls_cap = cv2.VideoWriter(wls_outfn, cv2.VideoWriter.fourcc('A','V','C','1'), depth_fps, (depth_width, depth_height))
 #wls_cap = cv2.VideoWriter(wls_outfn, cv2.VideoWriter_fourcc(*'avc1'), depth_fps, (depth_width, depth_height))
