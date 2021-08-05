@@ -133,6 +133,7 @@ xout_passthrough.setStreamName("pass")
 xout_passthrough.setMetadataOnly(True)
 detection_nn.passthrough.link(xout_passthrough.input)
 
+'''
 # Left mono camera
 left = pipeline.createMonoCamera()
 left.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
@@ -144,8 +145,8 @@ right.setBoardSocket(dai.CameraBoardSocket.RIGHT)
 
 # Create a node that will produce the depth map (using disparity output as it's easier to visualize depth this way)
 stereo = pipeline.createStereoDepth()
-stereo.initialConfig.setConfidenceThreshold(245)
-stereo.initialConfig.setMedianFilter(dai.StereoDepthProperties.MedianFilter.KERNEL_7x7)
+stereo.setConfidenceThreshold(245)
+stereo.setMedianFilter(dai.StereoDepthProperties.MedianFilter.KERNEL_7x7)
 stereo.setLeftRightCheck(True)
 stereo.setDepthAlign(dai.CameraBoardSocket.RGB)
 left.out.link(stereo.left)
@@ -155,12 +156,13 @@ right.out.link(stereo.right)
 xout_depth = pipeline.createXLinkOut()
 xout_depth.setStreamName("depth")
 stereo.depth.link(xout_depth.input)
+'''
 
 # Pipeline is defined, now we can connect to the device
 with dai.Device(pipeline) as device:
     # Output queues will be used to get the outputs from the device
     q_color = device.getOutputQueue(name="cam", maxSize=4, blocking=False)
-    q_depth = device.getOutputQueue(name="depth", maxSize=4, blocking=False)
+    #q_depth = device.getOutputQueue(name="depth", maxSize=4, blocking=False)
     q_nn = device.getOutputQueue(name="nn", maxSize=4, blocking=False)
     q_pass = device.getOutputQueue(name="pass", maxSize=4, blocking=False)
 
@@ -171,9 +173,11 @@ with dai.Device(pipeline) as device:
     while True:
         sync.add_msg("color", q_color.get())
 
+        '''
         in_depth = q_depth.tryGet()
         if in_depth is not None:
             sync.add_msg("depth", in_depth)
+        '''
 
         in_nn = q_nn.tryGet()
         if in_nn is not None:
@@ -200,6 +204,7 @@ with dai.Device(pipeline) as device:
                 cv2.putText(frame, "Fps: {:.2f}".format(fps.fps()), (2, frame.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4, color=(255, 255, 255))
                 cv2.imshow("weighted", frame)
 
+            '''
             if "depth" in msgs:
                 depth_frame = msgs["depth"].getFrame()
                 depth_frame = crop_to_square(depth_frame)
@@ -215,6 +220,7 @@ with dai.Device(pipeline) as device:
                 depth_overlay = depth_frame * multiplier
                 dispay_colored_depth(depth_overlay, "depth_overlay")
                 # You can add custom code here, for example depth averaging
+            '''
 
         if cv2.waitKey(1) == ord('q'):
             break
