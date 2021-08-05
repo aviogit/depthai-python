@@ -79,6 +79,8 @@ if args.start_frame != 0:
 		left_cap.set(cv2.CAP_PROP_POS_FRAMES, args.start_frame-1)
 		right_cap.set(cv2.CAP_PROP_POS_FRAMES, args.start_frame-1)
 
+frame_counter = args.start_frame
+
 while cap.isOpened():
 	if args.disparity:
 		if not depth_cap.isOpened():
@@ -101,7 +103,8 @@ while cap.isOpened():
 	if pause:
 		continue
 
-	cret, cframe = cap.read()
+	cret, cframe   = cap.read()
+	frame_counter += 1
 	if args.disparity:
 		dret, dframe = depth_cap.read()
 		small_size = (dframe.shape[1], dframe.shape[0])
@@ -134,13 +137,11 @@ while cap.isOpened():
 	if args.resize != '':
 		new_size = args.resize.split('x')
 		new_size = [int(x) for x in new_size]
-		#new_size[0] = int(new_size[0]/2)
-		#new_size[0], new_size[1] = new_size[1], new_size[0]
-		print(f'New size: {new_size}')
 		combo = cv2.resize(combo, tuple(new_size))
-		print(combo.shape)
 
 	cv2.imshow('frame', combo)
+	if frame_counter % 1000 == 0:
+		print(f'Frame no.: {frame_counter}')
 
 cap.release()
 if args.disparity:
