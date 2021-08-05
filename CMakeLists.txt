@@ -31,6 +31,18 @@ endif()
 set(TARGET_NAME depthai)
 project(depthai VERSION "0") # revision of bindings [depthai-core].[rev]
 
+# Set default build type depending on context
+set(default_build_type "Release")
+if(EXISTS "${CMAKE_SOURCE_DIR}/.git" AND NOT DEFINED ENV{CI})
+    set(default_build_type "Debug")
+endif()
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
+    set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE STRING "Choose the type of build." FORCE)
+    # Set the possible values of build type for cmake-gui
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+endif()
+
 # Add module paths
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/")
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/depthai-core/cmake")
@@ -38,7 +50,7 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/depthai-core/cmake")
 # Constants
 set(DOCSTRINGS_INCLUDE_PLACEHOLDER_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/include)
 set(DOCSTRINGS_INCLUDE_PLACEHOLDER_PATH ${DOCSTRINGS_INCLUDE_PLACEHOLDER_DIR}/docstring.hpp)
-set(DOCSTRINGS_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/include/depthai_python_docstring.hpp)
+set(DEFAULT_DOCSTRINGS_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/depthai_python_docstring.hpp)
 
 # First specify options
 option(DEPTHAI_PYTHON_USE_FIND_PACKAGE "Use find_package for depthai-core" OFF)
@@ -46,11 +58,6 @@ option(DEPTHAI_PYTHON_ENABLE_TESTS "Enable tests" OFF)
 option(DEPTHAI_PYTHON_ENABLE_EXAMPLES "Enable examples" OFF)
 option(DEPTHAI_PYTHON_BUILD_DOCS "Build documentation - see docs/requirements.txt for needed dependencies" OFF)
 option(DEPTHAI_PYTHON_BUILD_DOCSTRINGS "Generate docstrings from header files if module 'pybind11_mkdoc' available" ON)
-set(DEPTHAI_PYTHON_DOCSTRINGS_INPUT ${DOCSTRINGS_OUTPUT} CACHE FILEPATH "Path to docstring for bindings") 
-set(DEPTHAI_PYTHON_DOCSTRINGS_OUTPUT ${DOCSTRINGS_OUTPUT} CACHE FILEPATH "Path where docstring file will be generated") 
-if(DEPTHAI_PYTHON_BUILD_DOCSTRINGS)
-    option(DEPTHAI_PYTHON_FORCE_DOCSTRINGS "Force that docstrings are generated, module 'pybind11_mkdoc' required" OFF)
-endif()
 
 # Add external dependencies
 add_subdirectory(external)
@@ -68,16 +75,17 @@ endif()
 hunter_add_package(pybind11)
 
 # Disable LTO if MINGW compiler
-if(MINGW)   
+if(MINGW)
     set(PYBIND11_LTO_CXX_FLAGS "" CACHE STRING "" FORCE)
 endif()
 find_package(pybind11 CONFIG REQUIRED)
 
 # Add files for python module
-pybind11_add_module(${TARGET_NAME} 
+pybind11_add_module(${TARGET_NAME}
     src/py_bindings.cpp
     src/XLinkConnectionBindings.cpp
     src/DeviceBindings.cpp
+    src/CalibrationHandlerBindings.cpp
     src/DeviceBootloaderBindings.cpp
     src/DatatypeBindings.cpp
     src/DataQueueBindings.cpp
@@ -89,39 +97,93 @@ pybind11_add_module(${TARGET_NAME}
     src/log/LogBindings.cpp
 )
 
+
+# Docstring options
+if(DEPTHAI_PYTHON_DOCSTRINGS_INPUT AND DEPTHAI_PYTHON_DOCSTRINGS_OUTPUT)
+    message(FATAL_ERROR "DEPTHAI_PYTHON_DOCSTRINGS_INPUT and DEPTHAI_PYTHON_DOCSTRINGS_OUTPUT are mutually exclusive")
+endif()
+
+if(DEPTHAI_PYTHON_DOCSTRINGS_OUTPUT)
+    # If output is specified set both input and output to same the path
+    set(docstring_input_path ${DEPTHAI_PYTHON_DOCSTRINGS_OUTPUT})
+    set(docstring_output_path ${DEPTHAI_PYTHON_DOCSTRINGS_OUTPUT})
+else()
+    # If input docstrings explicitly specified, use those and disable building
+    if(DEPTHAI_PYTHON_DOCSTRINGS_INPUT)
+        set(docstring_input_path ${DEPTHAI_PYTHON_DOCSTRINGS_INPUT})
+        message(STATUS "Disabled building of docstrings - using docstrings specified by DEPTHAI_PYTHON_DOCSTRINGS_INPUT (${DEPTHAI_PYTHON_DOCSTRINGS_INPUT})")
+        set(DEPTHAI_PYTHON_BUILD_DOCSTRINGS OFF CACHE BOOL "Generate docstrings from header files if module 'pybind11_mkdoc' available" FORCE)
+    else()
+        # Otherwise set default location as input
+        set(docstring_input_path ${DEFAULT_DOCSTRINGS_OUTPUT})
+    endif()
+
+    # Set default output location
+    set(docstring_output_path ${DEFAULT_DOCSTRINGS_OUTPUT})
+endif()
+
+if(DEPTHAI_PYTHON_BUILD_DOCSTRINGS)
+    option(DEPTHAI_PYTHON_FORCE_DOCSTRINGS "Force that docstrings are generated, module 'pybind11_mkdoc' required" OFF)
+endif()
+
 # Configure include placeholder with INPUT path
 configure_file(cmake/docstring.hpp.in ${DOCSTRINGS_INCLUDE_PLACEHOLDER_PATH})
 # Add target to generate docstrings
 if (DEPTHAI_PYTHON_BUILD_DOCSTRINGS)
     include(pybind11-mkdoc)
-    
+
     # Check if pybind11_mkdoc available and create target
-    target_pybind11_mkdoc_setup(${DEPTHAI_PYTHON_DOCSTRINGS_OUTPUT} depthai::core ${DEPTHAI_PYTHON_FORCE_DOCSTRINGS})
-    
-    if(NOT TARGET pybind11_mkdoc)
+    target_pybind11_mkdoc_setup(${docstring_output_path} depthai::core ${DEPTHAI_PYTHON_FORCE_DOCSTRINGS})
+
+    if(TARGET pybind11_mkdoc)
+        # Add dependency to mkdoc target (makes sure that mkdoc is executed, and docstrings available)
+        add_dependencies(${TARGET_NAME} pybind11_mkdoc)
+    else()
         # Generate default docstrings to OUTPUT path
-        configure_file(cmake/default_docstring.hpp.in ${DEPTHAI_PYTHON_DOCSTRINGS_OUTPUT} COPYONLY)
+        configure_file(cmake/default_docstring.hpp.in ${docstring_output_path} COPYONLY)
     endif()
 else()
     # Generate default docstrings to OUTPUT path
-    configure_file(cmake/default_docstring.hpp.in ${DEPTHAI_PYTHON_DOCSTRINGS_OUTPUT} COPYONLY)
+    configure_file(cmake/default_docstring.hpp.in ${docstring_output_path} COPYONLY)
 endif()
 
 # Add include directory
 target_include_directories(${TARGET_NAME} PRIVATE src ${DOCSTRINGS_INCLUDE_PLACEHOLDER_DIR})
 
 # Link with libraries
-target_link_libraries(${TARGET_NAME} 
-    PUBLIC 
+target_link_libraries(${TARGET_NAME}
+    PUBLIC
         # pybind11
         pybind11::pybind11
         depthai::core # Use non-opencv target as we use opencv-python in bindings
         hedley
 )
 
-# Add default commit hash ('dev') if not build by CI
-if(NOT DEFINED ENV{CI} AND NOT DEPTHAI_PYTHON_COMMIT_HASH)   
-    set(DEPTHAI_PYTHON_COMMIT_HASH "dev")
+# Find Git
+find_package(Git)
+
+# Add build information (commit, date)
+set(BUILD_COMMIT "dev")
+if(GIT_FOUND)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
+        WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+        OUTPUT_VARIABLE BUILD_COMMIT
+        ERROR_QUIET
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} show -s --format=%ci ${BUILD_COMMIT}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+        OUTPUT_VARIABLE BUILD_COMMIT_DATETIME
+        ERROR_QUIET
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+endif()
+
+# Add local commit hash (or 'dev' if unable to retrieve) if not build by CI
+if(NOT DEFINED ENV{CI} AND NOT DEPTHAI_PYTHON_COMMIT_HASH)
+    set(DEPTHAI_PYTHON_COMMIT_HASH ${BUILD_COMMIT})
 endif()
 
 # Get version to use
@@ -135,8 +197,15 @@ execute_process(COMMAND ${PYTHON_EXECUTABLE} "-c" "${version_command}"
     WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
 )
 
-# Add version definition
-target_compile_definitions(${TARGET_NAME} PRIVATE DEPTHAI_PYTHON_VERSION="${DEPTHAI_PYTHON_VERSION}")
+
+string(TIMESTAMP BUILD_DATETIME "%Y-%m-%d %H:%M:%S +0000" UTC)
+target_compile_definitions(${TARGET_NAME}
+    PRIVATE
+        DEPTHAI_PYTHON_VERSION="${DEPTHAI_PYTHON_VERSION}"
+        DEPTHAI_PYTHON_COMMIT_HASH="${BUILD_COMMIT}"
+        DEPTHAI_PYTHON_COMMIT_DATETIME="${BUILD_COMMIT_DATETIME}"
+        DEPTHAI_PYTHON_BUILD_DATETIME="${BUILD_DATETIME}"
+)
 
 # Set compiler features (c++14), and disables extensions
 set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 14)
