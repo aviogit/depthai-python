@@ -21,7 +21,8 @@ python3 /opt/intel/openvino/deployment_tools/model_optimizer/mo_tf.py   --input_
 parser = argparse.ArgumentParser()
 parser.add_argument("-shape", "--nn_shape", help="select NN model shape", default=256, type=int)
 #parser.add_argument("-nn", "--nn_path", help="select model path for inference", default='models/deeplab_v3_plus_mvn2_decoder_256_openvino_2021.2_6shave.blob', type=str)
-parser.add_argument("-nn", "--nn_path", help="select model path for inference", default='models/pothole-segmentron-deeplabv3+-resnet50-no-data-aug-img_size-360-640-2b-2021-08-06_04.49.43-WD-0.0001-BS-8-LR-1e-07-1e-06-epoch-5-dice_multi-0.8379.blob', type=str)
+#parser.add_argument("-nn", "--nn_path", help="select model path for inference", default='models/pothole-segmentron-deeplabv3+-resnet50-no-data-aug-img_size-360-640-2b-2021-08-06_04.49.43-WD-0.0001-BS-8-LR-1e-07-1e-06-epoch-5-dice_multi-0.8379.blob', type=str)
+parser.add_argument("-nn", "--nn_path", help="select model path for inference", default='models/pothole-segmentron-deeplabv3+-mobilenet_v2-basic-data-aug-img_size-360-640-2b-2021-08-06_13.07.29-WD-0.0001-BS-8-LR-1e-07-1e-06-epoch-1-dice_multi-0.8192.blob', type=str)
 args = parser.parse_args()
 
 #nn_shape = args.nn_shape
@@ -30,37 +31,47 @@ if '256' in args.nn_path:
 else:
 	nn_img_size = (640,360)
 nn_path = args.nn_path
-TARGET_SHAPE = (400,400)
+#TARGET_SHAPE = (400,400)
+
+def dilate(src, dilatation_size, dilation_shape=cv2.MORPH_ELLIPSE):
+	element = cv2.getStructuringElement(dilation_shape, (2 * dilatation_size + 1, 2 * dilatation_size + 1), (dilatation_size, dilatation_size))
+	dilatation_dst = cv2.dilate(src, element)
+	return dilatation_dst
 
 def decode_deeplabv3p(output_tensor, new_shape, debug=False):
 	class_colors = [[0,0,0], [0,0,255], [255,0,0], [0,255,0], [255,255,0], [0,255,255]]
 	class_colors = np.asarray(class_colors, dtype=np.uint8)
 
-	output = output_tensor.reshape(new_shape).squeeze().transpose(2, 0, 1)
-	if debug:
-		print(f'{output.shape} - {output = }')
-		print(f'{output[0].shape} - {output[0] = }')
-	#clipped_output = np.uint8((output * 255.0).clip(0, 255)[0])
-	clipped_output = np.uint8((output * 255.0).clip(0, 2)[1])
-	if debug:
-		print(f'{clipped_output.shape} - {clipped_output = }')
-	#output_colors = np.take(class_colors, clipped_output, axis=0)
-	#output_colors = np.uint8((output * 255.0).clip(0, 2)).transpose(1, 2, 0)
-	#print(f'{output_colors.shape} - {output_colors = }')
+	if False:
+		output = output_tensor.reshape(new_shape).squeeze().transpose(2, 0, 1)
+		if debug:
+			print(f'{output.shape} - {output = }')
+			print(f'{output[0].shape} - {output[0] = }')
+		#clipped_output = np.uint8((output * 255.0).clip(0, 255)[0])
+		clipped_output = np.uint8((output * 255.0).clip(0, 2)[1])
+		if debug:
+			print(f'{clipped_output.shape} - {clipped_output = }')
+		#output_colors = np.take(class_colors, clipped_output, axis=0)
+		#output_colors = np.uint8((output * 255.0).clip(0, 2)).transpose(1, 2, 0)
+		#print(f'{output_colors.shape} - {output_colors = }')
 
-	result_mask_ir = np.squeeze(np.argmax(output_tensor, axis=2)).astype(np.uint8)
+	if False:
+		crop_res_ir = output_tensor[:, :, 180:240, 320:420] 
+		print(f'{crop_res_ir.shape} - {crop_res_ir = }')
+		crop_mask_ir = np.squeeze(np.argmax(crop_res_ir, axis=1)).astype(np.uint8)
+		print(f'{crop_mask_ir.shape} - {crop_mask_ir = }')
+
+	result_mask_ir = np.squeeze(np.argmax(output_tensor, axis=1)).astype(np.uint8)
 	if debug:
 		print(f'{result_mask_ir.shape} - {result_mask_ir = }')
 
-	crop_res_ir = output_tensor[:, :, 180:240, 320:420] 
-	print(f'{crop_res_ir.shape} - {crop_res_ir = }')
-	crop_mask_ir = np.squeeze(np.argmax(crop_res_ir, axis=1)).astype(np.uint8)
-	print(f'{crop_mask_ir.shape} - {crop_mask_ir = }')
+	output_colors = np.take(class_colors, result_mask_ir, axis=0)
 
-	output_colors = np.take(class_colors, crop_mask_ir, axis=0)
-	if debug or True:
+	output_colors = dilate(output_colors, 7)
+
+	if debug:
 		print(f'{output_colors.shape} - {output_colors = }')
-	print(f'{np.nonzero(output_colors) = }')
+		print(f'{np.nonzero(output_colors) = }')
 
 	return output_colors
 
@@ -270,12 +281,12 @@ with dai.Device(pipeline) as device:
 			output_colors = decode_deeplabv3p(lay1, new_shape)
 
 			# To match depth frames
-			output_colors = cv2.resize(output_colors, TARGET_SHAPE)
+			output_colors = cv2.resize(output_colors, nn_img_size)
 
 			if "color" in msgs:
 				frame = msgs["color"].getCvFrame()
 				frame = crop_to_square(frame)
-				frame = cv2.resize(frame, TARGET_SHAPE)
+				frame = cv2.resize(frame, nn_img_size)
 
 				frame = show_deeplabv3p(output_colors, frame)
 				cv2.putText(frame, "Fps: {:.2f}".format(fps.fps()), (2, frame.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4, color=(255, 255, 255))
