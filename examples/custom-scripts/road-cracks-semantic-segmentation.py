@@ -25,10 +25,8 @@ python3 /opt/intel/openvino/deployment_tools/model_optimizer/mo_tf.py   --input_
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-shape", "--nn_shape", help="select NN model shape", default=256, type=int)
-#parser.add_argument("-nn", "--nn_path", help="select model path for inference", default='models/deeplab_v3_plus_mvn2_decoder_256_openvino_2021.2_6shave.blob', type=str)
-#parser.add_argument("-nn", "--nn_path", help="select model path for inference", default='models/pothole-segmentron-deeplabv3+-resnet50-no-data-aug-img_size-360-640-2b-2021-08-06_04.49.43-WD-0.0001-BS-8-LR-1e-07-1e-06-epoch-5-dice_multi-0.8379.blob', type=str)
-#parser.add_argument("-nn", "--nn_path", help="select model path for inference", default='models/pothole-segmentron-deeplabv3+-mobilenet_v2-basic-data-aug-img_size-360-640-2b-2021-08-06_13.07.29-WD-0.0001-BS-8-LR-1e-07-1e-06-epoch-1-dice_multi-0.8192.blob', type=str)
-parser.add_argument("-nn", "--nn_path", help="select model path for inference", default='models/pothole-segmentron-deeplabv3+-mobilenet_v2-no-data-aug-img_size-180-320-1b-2021-08-09_14.52.21-WD-0.0001-BS-48-LR-1e-07-1e-06-epoch-2-dice_multi-0.8823.blob', type=str)
+#parser.add_argument("-nn", "--nn_path", help="select model path for inference", default='models/pothole-segmentron-deeplabv3+-mobilenet_v2-no-data-aug-img_size-180-320-1b-2021-08-09_14.52.21-WD-0.0001-BS-48-LR-1e-07-1e-06-epoch-2-dice_multi-0.8823.blob', type=str)
+parser.add_argument("-nn", "--nn_path", help="select model path for inference", default='models/pothole-segmentron-deeplabv3+-mobilenet_v2-no-data-aug-img_size-360-640-2b-2021-08-09_14.52.21-WD-0.0001-BS-8-LR-1e-07-1e-06-epoch-6-dice_multi-0.9033.blob', type=str)
 parser.add_argument("-vf", "--videofile",   help="specify a video file to perform inference on instead of video stream", default='', type=str)
 parser.add_argument("-r",  "--rotatevideo", help="rotate 90° the input video for inference (e.g. vertical mobile phone video), then rotate it back for display and/or saving", default='False', type=str)
 parser.add_argument("-ov", "--outputvideo", help="specify a video file where to record the output", default='', type=str)
@@ -38,10 +36,9 @@ args = parser.parse_args()
 if '256' in args.nn_path:
 	nn_img_size = (256,256)
 else:
-	#nn_img_size = (640,360)
-	nn_img_size = (320,180)
+	nn_img_size = (640,360)
+	#nn_img_size = (320,180)
 nn_path = args.nn_path
-#TARGET_SHAPE = (400,400)
 
 def dilate(src, dilatation_size, dilation_shape=cv2.MORPH_ELLIPSE):
 	element = cv2.getStructuringElement(dilation_shape, (2 * dilatation_size + 1, 2 * dilatation_size + 1), (dilatation_size, dilatation_size))
@@ -198,7 +195,6 @@ with dai.Device(pipeline) as device:
 		q_color = device.getOutputQueue(name="cam",  maxSize=4, blocking=False)
 		q_pass  = device.getOutputQueue(name="pass", maxSize=4, blocking=False)
 
-	#q_depth = device.getOutputQueue(name="depth", maxSize=4, blocking=False)
 	q_nn   = device.getOutputQueue(name="nn",   maxSize=4, blocking=False)
 
 	fps = FPSHandler()
@@ -209,15 +205,12 @@ with dai.Device(pipeline) as device:
 		cap       = cv2.VideoCapture(args.videofile)
 		is_opened = cap.isOpened()
 		if args.outputvideo:
+			ffmpeg_prefix = f'ffmpeg -y -s '
+			ffmpeg_suffix = f' -pixel_format bgr24 -f rawvideo -r 60 -i pipe: -vcodec libx264 -pix_fmt yuv420p -crf 24 {args.outputvideo}'
 			if args.rotatevideo != 'False':
-				#out_cap = cv2.VideoWriter(args.outputvideo, cv2.VideoWriter.fourcc('M','J','P','G'), 60, nn_img_size)
-				process = sp.Popen(shlex.split(f'ffmpeg -y -s {nn_img_size[1]}x{nn_img_size[0]} -pixel_format bgr24 -f rawvideo -r 60 -i pipe: -vcodec libx264 -pix_fmt yuv420p -crf 24 {args.outputvideo}'), stdin=sp.PIPE)
+				process = sp.Popen(shlex.split(f'{ffmpeg_prefix}{nn_img_size[1]}x{nn_img_size[0]}{ffmpeg_suffix}'), stdin=sp.PIPE)
 			else:
-				#out_cap = cv2.VideoWriter(args.outputvideo, cv2.VideoWriter.fourcc('M','J','P','G'), 60, nn_img_size[::-1])
-				process = sp.Popen(shlex.split(f'ffmpeg -y -s {nn_img_size[0]}x{nn_img_size[1]} -pixel_format bgr24 -f rawvideo -r 60 -i pipe: -vcodec libx264 -pix_fmt yuv420p -crf 24 {args.outputvideo}'), stdin=sp.PIPE)
-			#if not out_cap.isOpened():
-			#	print(f'Failed to open OpenCV video writer: {args.outputvideo}')
-			#	sys.exit(0)
+				process = sp.Popen(shlex.split(f'{ffmpeg_prefix}{nn_img_size[0]}x{nn_img_size[1]}{ffmpeg_suffix}'), stdin=sp.PIPE)
 	else:
 		is_opened = True
 
@@ -237,11 +230,6 @@ with dai.Device(pipeline) as device:
 			img.setWidth(nn_img_size[0])
 			img.setHeight(nn_img_size[1])
 			qIn.send(img)
-		'''
-		in_depth = q_depth.tryGet()
-		if in_depth is not None:
-			sync.add_msg("depth", in_depth)
-		'''
 
 		if not args.videofile:
 			in_nn = q_nn.tryGet()
@@ -273,8 +261,6 @@ with dai.Device(pipeline) as device:
 				new_shape = nn_img_size
 			else:
 				layer1 = in_nn.getFirstLayerFp16()
-				#new_shape = all_layers[0].dims
-				#new_shape = (1, 3, 360, 640)
 				new_shape = (1, 3, nn_img_size[1], nn_img_size[0])
 			lenlayer1 = len(layer1)
 
@@ -297,7 +283,6 @@ with dai.Device(pipeline) as device:
 			cv2.imshow("weighted", frame)
 
 			if args.outputvideo:
-				#out_cap.write(frame)
 				process.stdin.write(frame.tobytes())
 
 		if cv2.waitKey(1) == ord('q'):
