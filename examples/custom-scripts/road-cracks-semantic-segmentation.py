@@ -42,25 +42,6 @@ def decode_deeplabv3p(output_tensor, new_shape, debug=False):
 	class_colors = [[0,0,0], [0,0,255], [255,0,0], [0,255,0], [255,255,0], [0,255,255]]
 	class_colors = np.asarray(class_colors, dtype=np.uint8)
 
-	if False:
-		output = output_tensor.reshape(new_shape).squeeze().transpose(2, 0, 1)
-		if debug:
-			print(f'{output.shape} - {output = }')
-			print(f'{output[0].shape} - {output[0] = }')
-		#clipped_output = np.uint8((output * 255.0).clip(0, 255)[0])
-		clipped_output = np.uint8((output * 255.0).clip(0, 2)[1])
-		if debug:
-			print(f'{clipped_output.shape} - {clipped_output = }')
-		#output_colors = np.take(class_colors, clipped_output, axis=0)
-		#output_colors = np.uint8((output * 255.0).clip(0, 2)).transpose(1, 2, 0)
-		#print(f'{output_colors.shape} - {output_colors = }')
-
-	if False:
-		crop_res_ir = output_tensor[:, :, 180:240, 320:420] 
-		print(f'{crop_res_ir.shape} - {crop_res_ir = }')
-		crop_mask_ir = np.squeeze(np.argmax(crop_res_ir, axis=1)).astype(np.uint8)
-		print(f'{crop_mask_ir.shape} - {crop_mask_ir = }')
-
 	result_mask_ir = np.squeeze(np.argmax(output_tensor, axis=1)).astype(np.uint8)
 	if debug:
 		print(f'{result_mask_ir.shape} - {result_mask_ir = }')
@@ -176,7 +157,7 @@ xout_passthrough = pipeline.createXLinkOut()
 xout_passthrough.setStreamName("pass")
 # Only send metadata, we are only interested in timestamp, so we can sync
 # depth frames with NN output
-xout_passthrough.setMetadataOnly(True)
+# xout_passthrough.setMetadataOnly(True)
 detection_nn.passthrough.link(xout_passthrough.input)
 
 debug = False
@@ -194,8 +175,6 @@ with dai.Device(pipeline) as device:
 	depth_frame = None
 
 	while True:
-		sync.add_msg("color", q_color.get())
-
 		'''
 		in_depth = q_depth.tryGet()
 		if in_depth is not None:
@@ -205,9 +184,8 @@ with dai.Device(pipeline) as device:
 		in_nn = q_nn.tryGet()
 		if in_nn is not None:
 			fps.next_iter()
-			# Get NN output timestamp from the passthrough
-			timestamp = q_pass.get().getTimestamp()
-			msgs = sync.get_msgs(timestamp)
+			# Get NN passthrough frame
+			frame = q_pass.get().getCvFrame()
 
 			if debug:
 				print(f'{in_nn = }')
@@ -245,14 +223,9 @@ with dai.Device(pipeline) as device:
 			# To match depth frames
 			output_colors = cv2.resize(output_colors, nn_img_size)
 
-			if "color" in msgs:
-				frame = msgs["color"].getCvFrame()
-				frame = crop_to_square(frame)
-				frame = cv2.resize(frame, nn_img_size)
-
-				frame = show_deeplabv3p(output_colors, frame)
-				cv2.putText(frame, "Fps: {:.2f}".format(fps.fps()), (2, frame.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4, color=(255, 255, 255))
-				cv2.imshow("weighted", frame)
+			frame = show_deeplabv3p(output_colors, frame)
+			cv2.putText(frame, "Fps: {:.2f}".format(fps.fps()), (2, frame.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4, color=(255, 255, 255))
+			cv2.imshow("weighted", frame)
 
 		if cv2.waitKey(1) == ord('q'):
 			break
