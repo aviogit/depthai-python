@@ -11,7 +11,7 @@ How to place it
   .. code-tab:: py
 
     pipeline = dai.Pipeline()
-    manip = pipeline.createImageManip()
+    manip = pipeline.create(dai.node.ImageManip)
 
   .. code-tab:: c++
 
@@ -52,7 +52,7 @@ Usage
   .. code-tab:: py
 
       pipeline = dai.Pipeline()
-      manip = pipeline.createImageManip()
+      manip = pipeline.create(dai.node.ImageManip)
 
       manip.initialConfig.setResize(300, 300)
       manip.initialConfig.setFrameType(dai.ImgFrame.Type.BGR888p)
@@ -87,6 +87,8 @@ Examples of functionality
 - :ref:`Mono & MobilenetSSD`
 - :ref:`RGB Encoding & Mono & MobilenetSSD`
 - :ref:`RGB Camera Control`
+- :ref:`ImageManip tiling` - Using ImageManip for frame tiling
+- :ref:`ImageManip rotate` - Using ImageManip to rotate color/mono frames
 
 Reference
 #########
@@ -95,7 +97,7 @@ Reference
 
   .. tab:: Python
 
-    .. autoclass:: depthai.ImageManip
+    .. autoclass:: depthai.node.ImageManip
       :members:
       :inherited-members:
       :noindex:

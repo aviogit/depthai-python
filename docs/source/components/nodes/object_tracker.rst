@@ -11,7 +11,7 @@ How to place it
   .. code-tab:: py
 
     pipeline = dai.Pipeline()
-    objectTracker = pipeline.createObjectTracker()
+    objectTracker = pipeline.create(dai.node.ObjectTracker)
 
   .. code-tab:: c++
 
@@ -45,6 +45,19 @@ Inputs and Outputs
 - :code:`passthroughTrackerFrame` - :ref:`ImgFrame`
 - :code:`passthroughDetections` - :ref:`ImgDetections`
 
+
+Zero term tracking
+##################
+
+Zero term tracking performs object association, which means that it does not conduct prediction and tracking based on previous tracking history.
+Object association would mean that detected objects from an external detector are mapped with tracked objects which has been detected and is being tracked from
+previous frames.
+
+Supported object tracker types:
+
+- :code:`ZERO_TERM_COLOR_HISTOGRAM`: Utilizes position, shape and input image information such as RGB histogram to perform object tracking.
+- :code:`ZERO_TERM_IMAGELESS`: Only utilizes rectangular shape of detected object and position information for object tracking. It does not use color information of tracking objects. It achieves higher throughput than ZERO_TERM_COLOR_HISTOGRAM. User needs to consider the trade-off between throughput and accuracy when choosing the object tracker type.
+
 Usage
 #####
 
@@ -53,7 +66,7 @@ Usage
   .. code-tab:: py
 
       pipeline = dai.Pipeline()
-      objectTracker = pipeline.createObjectTracker()
+      objectTracker = pipeline.create(dai.node.ObjectTracker)
 
       objectTracker.setDetectionLabelsToTrack([15])  # Track only person
       # Possible tracking types: ZERO_TERM_COLOR_HISTOGRAM, ZERO_TERM_IMAGELESS
@@ -92,7 +105,7 @@ Reference
 
   .. tab:: Python
 
-    .. autoclass:: depthai.ObjectTracker
+    .. autoclass:: depthai.node.ObjectTracker
       :members:
       :inherited-members:
       :noindex:

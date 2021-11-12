@@ -11,7 +11,7 @@ How to place it
   .. code-tab:: py
 
     pipeline = dai.Pipeline()
-    cam = pipeline.createColorCamera()
+    cam = pipeline.create(dai.node.ColorCamera)
 
   .. code-tab:: c++
 
@@ -59,6 +59,8 @@ Click `here <https://en.wikipedia.org/wiki/Image_processor>`__ for more informat
 
 **Image Post-Processing** converts YUV420 planar frames from the **ISP** into :code:`video`/:code:`preview`/:code:`still` frames.
 
+When setting sensor resolution to 12MP and using :code:`video`, you will get 4K video output. 4K frames are cropped from 12MP frames (not downsampled).
+
 Usage
 #####
 
@@ -67,7 +69,7 @@ Usage
   .. code-tab:: py
 
       pipeline = dai.Pipeline()
-      cam = pipeline.createColorCamera()
+      cam = pipeline.create(dai.node.ColorCamera)
       cam.setPreviewSize(300, 300)
       cam.setBoardSocket(dai.CameraBoardSocket.RGB)
       cam.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
@@ -98,7 +100,7 @@ Reference
 
   .. tab:: Python
 
-    .. autoclass:: depthai.ColorCamera
+    .. autoclass:: depthai.node.ColorCamera
       :members:
       :inherited-members:
       :noindex:
