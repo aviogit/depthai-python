@@ -10,7 +10,7 @@ from pathlib import Path
 from argument_parser import define_boolean_argument, var2opt
 
 # E.g. conversion for surface-pattern-recognition dataset:
-# /mnt/porcodiodo/cnr/depthai/depthai-python/examples/custom-scripts/segmentation-mask-change-color.py -dir `pwd` -class1 255,255,255-0,0,0 -class2 255,0,0-1,1,1 -class3 0,0,255-2,2,2 -class4 0,255,0-3,3,3 -class5 44,0,0-4,4,4 -class6 185,26,255-5,5,5 -class7 0,211,255-6,6,6 -class8 0,88,0-7,7,7 --no-dry-run --to-grayscale
+# /mnt/btrfs-data/venvs/ml-tutorials/repos/depthai-python/examples/custom-scripts/segmentation-mask-change-color.py -dir `pwd` -class1 255,255,255-0,0,0 -class2 255,0,0-1,1,1 -class3 0,0,255-2,2,2 -class4 0,255,0-3,3,3 -class5 44,0,0-4,4,4 -class6 185,26,255-5,5,5 -class7 0,211,255-6,6,6 -class8 0,88,0-7,7,7 --no-dry-run --to-grayscale
 
 
 parser = argparse.ArgumentParser()
