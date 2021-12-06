@@ -21,29 +21,38 @@ def get_quarter_img(frame, show_quarter_img):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--prefix', nargs='?', help="color-/left-/right-<prefix>.h265 video files will be used")
+parser.add_argument('--prefix', nargs='?', help="color-/left-/right-<prefix>.h265(.mp4) video files will be used")
 parser.add_argument('--start-frame', default=0, type=int, help='start frame for start replaying the video triplet')
 parser.add_argument('--resize', default='', type=str, help='resize image pairs to WxH resolution (e.g. --resize 640x480')
 define_boolean_argument(parser, *var2opt('disparity'), 'capture disparity instead of left/right streams', False)
 define_boolean_argument(parser, *var2opt('wls_disparity'), 'capture wls disparity instead of left/right or normal disparity streams', True)
 define_boolean_argument(parser, *var2opt('rectright'), 'capture rectright instead of color stream', True)
+define_boolean_argument(parser, *var2opt('rect'), 'prepend the "rect" prefix to left and right to open rectleft and rectright instead of just left/right', False)
+define_boolean_argument(parser, *var2opt('mp4'), 'postpone the "mp4" suffix to file names to open .h265.mp4 files instead of just .h265 files', False)
 args = parser.parse_args()
 
 if args.prefix is None:
 	print(f'Please specify a valid prefix for video files. Exiting...')
 	sys.exit(0)
 
-if args.rectright:
-	main_fn	= glob.glob(f'rectright-{args.prefix}*h265*')
+if args.mp4:
+	mp4_suffix	= '.mp4'
 else:
-	main_fn	= glob.glob(f'color-{args.prefix}*h265*')
+	mp4_suffix	= ''
+
+if args.rectright:
+	main_fn	= glob.glob(f'rectright-{args.prefix}*h265{mp4_suffix}')
+else:
+	main_fn	= glob.glob(f'color-{args.prefix}*h265{mp4_suffix}')
+
 print(f'Found main file(s): {main_fn}')
 main_fn = main_fn[0]
 print(f'Opening main file: {main_fn}')
 cap			= cv2.VideoCapture(f'{main_fn}')
 caplen			= int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
 if args.disparity:
-	depth_cap	= cv2.VideoCapture(f'depth-{args.prefix}.h265')
+	depth_cap	= cv2.VideoCapture(f'depth-{args.prefix}.h265{mp4_suffix}')
 	depth_len	= int(depth_cap.get(cv2.CAP_PROP_FRAME_COUNT))
 	print(f'{caplen = } - {depth_len = }')
 elif args.wls_disparity:
@@ -55,8 +64,14 @@ elif args.wls_disparity:
 	wls_len		= int(wls_cap.get(cv2.CAP_PROP_FRAME_COUNT))
 	print(f'{caplen = } - {wls_len = }')
 else:
-	left_fn		= f'left-{args.prefix}.h265'
-	right_fn	= f'right-{args.prefix}.h265'
+	if args.rect:
+		rect_prefix = 'rect'
+	else:
+		rect_prefix = ''
+	left_fn		= f'{rect_prefix}left-{args.prefix}.h265{mp4_suffix}'
+	right_fn	= f'{rect_prefix}right-{args.prefix}.h265{mp4_suffix}'
+	#left_fn		= f'left-{args.prefix}.h265'
+	#right_fn	= f'right-{args.prefix}.h265'
 	print(f'Opening left/right files: {left_fn}/{right_fn}')
 	left_cap	= cv2.VideoCapture(f'{left_fn}')
 	left_len	= int(left_cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -100,6 +115,7 @@ while cap.isOpened():
 		break
 	if key & 0xFF == ord('p'):
 		pause = not pause
+		print(f'Frame no.: {frame_counter}')
 	if pause:
 		continue
 
@@ -114,6 +130,7 @@ while cap.isOpened():
 	else:
 		lret, lframe = left_cap.read()
 		rret, rframe = right_cap.read()
+		small_size = (cframe.shape[1], cframe.shape[0])
 
 	cframe   = cv2.resize(cframe, small_size)
 	cframe_s = get_quarter_img(cframe, show_quarter_img)
@@ -138,6 +155,11 @@ while cap.isOpened():
 		new_size = args.resize.split('x')
 		new_size = [int(x) for x in new_size]
 		combo = cv2.resize(combo, tuple(new_size))
+
+	if key & 0xFF == ord('s'):
+		cv2.imwrite(f'/tmp/l-{frame_counter}.jpg', lframe);
+		cv2.imwrite(f'/tmp/r-{frame_counter}.jpg', rframe);
+		print(f'Saved frame no.: {frame_counter}')
 
 	cv2.imshow('frame', combo)
 	if frame_counter % 1000 == 0:

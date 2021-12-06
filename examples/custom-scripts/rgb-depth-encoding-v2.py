@@ -230,7 +230,7 @@ if args.show_preview:
 # Pipeline defined, now the device is connected to
 with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 	# Start pipeline
-	device.startPipeline()
+	#device.startPipeline()
 
 	if args.wls_filter:
 		# Output queue will be used to get the rgb frames from the output defined above
