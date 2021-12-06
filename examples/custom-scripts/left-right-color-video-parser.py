@@ -11,6 +11,11 @@ from pathlib import Path
 from argument_parser import define_boolean_argument, var2opt
 
 
+# Launch with:
+
+# /mnt/btrfs-data/venvs/ml-tutorials/repos/depthai-python/examples/custom-scripts/left-right-color-video-parser.py --prefix 2021-06-08-17-16-44 --rectright --no-disparity --no-wls-disparity --rect --mp4 --start-frame 2800
+
+
 def get_quarter_img(frame, show_quarter_img):
 	if show_quarter_img:
 		frame_s = frame[int(frame.shape[0]/4):frame.shape[1], :]
