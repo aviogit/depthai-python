@@ -54,7 +54,7 @@ depth_resolutions = {
 	# ------------------
 	# -- OUTPUT FILES --
 	# ------------------
-	parser.add_argument('--output-dir', default='/mnt/btrfs-data',		help='captured videos output directory')
+	parser.add_argument('--output-dir', default='/mnt/btrfs-data',		help='captured videos output directory (default: /mnt/btrfs-data)')
 
 	# --------------
 	# -- HARDWARE --
@@ -95,6 +95,11 @@ depth_resolutions = {
 	parser.set_defaults(show_tips_traces=True)
 	parser.set_defaults(show_edge_traces=False)
 	'''
+
+	if len(sys.argv) == 1:
+		parser.print_help()
+		sys.exit(1)
+
 
 	args = parser.parse_args()
 	print('')
