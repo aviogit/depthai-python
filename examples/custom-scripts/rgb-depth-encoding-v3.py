@@ -26,6 +26,9 @@ import multiprocessing
 import colored					# https://pypi.org/project/colored/
 rst = colored.attr('reset')
 
+from circular_buffer import CircularBuffer
+ringbuffer = CircularBuffer(10)
+
 '''
 def col(a, c):
 	basic_colors = {
@@ -40,6 +43,56 @@ def col(a, c):
 		return colored(a, c)
 '''
 
+def preview_thread_impl(args, preview_counter, depth_frame, disp_img, rr_img, colored_disp):
+	'''
+	# data is originally represented as a flat 1D array, it needs to be converted into HxW form
+	depth_h, depth_w = in_depth.getHeight(), in_depth.getWidth()
+	if args.debug_img_sizes:
+		print(f'{depth_h = } - {depth_w = }')
+	depth_frame = in_depth.getData().reshape((depth_h, depth_w)).astype(np.uint8)
+	'''
+	if args.preview_downscale_factor != 1:
+		depth_frame = cv2.resize(depth_frame, dsize=(depth_w//args.preview_downscale_factor, depth_h//args.preview_downscale_factor), interpolation=cv2.INTER_CUBIC)
+	if args.debug_img_sizes:
+		print(f'{depth_frame.shape = } - {len(depth_frame) = } - {type(depth_frame) = } - {depth_frame.size = }')
+	depth_frame_orig = cv2.normalize(depth_frame, None, 0, 255, cv2.NORM_MINMAX)
+
+	if args.show_colored_disp:
+		depth_frame = np.ascontiguousarray(depth_frame_orig)
+		# depth_frame is transformed, the color map will be applied to highlight the depth info
+		depth_frame = apply_colormap(depth_frame, cmap=13)
+		# depth_frame is ready to be shown
+		cv2.imshow("colored disparity", depth_frame)
+		
+	# Retrieve 'bgr' (opencv format) frame
+	if args.show_rgb:
+		rgb_frame = in_rgb.getCvFrame()
+		if args.preview_downscale_factor != 1:
+			rgb_frame = cv2.resize(rgb_frame, dsize=(color_width//args.preview_downscale_factor, color_height//args.preview_downscale_factor), interpolation=cv2.INTER_CUBIC)
+		if args.debug_img_sizes:
+			print(f'{rgb_frame.shape = } - {len(rgb_frame) = } - {type(rgb_frame) = } - {rgb_frame.size = }')
+		cv2.imshow("rgb", rgb_frame)
+
+	#img_grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+	if args.show_th_disp:
+		depth_frame_th = cv2.adaptiveThreshold(depth_frame_orig, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+		cv2.imshow("disparity th", depth_frame_th)
+		depth_frame_th_color = cv2.cvtColor(depth_frame_th, cv2.COLOR_GRAY2BGR)
+
+	if False:
+		rgb_frame_resized = cv2.resize(rgb_frame, dsize=(depth_w, depth_h), interpolation=cv2.INTER_CUBIC)
+		combo = (rgb_frame_resized + depth_frame_th_color) / 2
+		cv2.imshow("combo", combo)
+
+	if args.show_gray_disp and disp_img is not None:
+		cv2.imshow("grayscale disparity",	disp_img)
+	if args.show_rr_img and rr_img is not None:
+		cv2.imshow("rr_img",			rr_img)
+	if args.show_wls_preview:
+		cv2.imshow("WLS colored disp",		colored_disp)
+
+	if cv2.waitKey(1) == ord('q'):			# this is the culprit! https://answers.opencv.org/question/52774/waitkey1-timing-issues-causing-frame-rate-slow-down-fix/
+		return
 args = argument_parser()
 
 # Run with:
@@ -174,11 +227,11 @@ fov = 71.86
 # ------------------------------------------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------------------------------------
 wls_data    = []	# filtered_disp, colored_disp = pool.map(apply_wls_filter, (disp_imgs, rr_imgs))
-wls_results = []
+#wls_results = []
 wls_counter = 0
 
 def wls_worker(queue_in, queue_out, wlsFilter):
-	print(f'Thread {os.getpid()} starting...')
+	print(f'wls_worker() thread {os.getpid()} starting...')
 	while True:
 		if args.debug_wls_threading:
 			print(f'Thread {os.getpid()} dequeuing (wls_queue_in.size: {wls_queue_in.qsize()})...')
@@ -200,18 +253,63 @@ def wls_worker(queue_in, queue_out, wlsFilter):
 # ------------------------------------------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------------------------------------
+preview_data    = []
+preview_counter = 0
 
+def preview_worker(queue_in):
+	print(f'preview_worker() thread {os.getpid()} starting...')
+	while True:
+		if args.debug_preview_threading:
+			print(f'Thread {os.getpid()} dequeuing (preview_queue_in.size: {preview_queue_in.qsize()})...')
+		item = queue_in.get(True)
+		if args.debug_preview_threading:
+			print(f'Thread {os.getpid()} got item {type(item)}...')
+		preview_counter, depth_frame, disp_img, rr_img, colored_disp = item
+		if args.debug_preview_threading:
+			print(f'Thread {os.getpid()} got frame no: {preview_counter} - {depth_frame.shape}...')
+
+		preview_thread_impl(args, preview_counter, depth_frame, disp_img, rr_img, colored_disp)
+
+		'''
+		preview_data = (preview_counter, disp_img, rr_img)
+		preview_counter_out, filtered_disp, colored_disp = previewFilter.apply_preview_filter(preview_data)
+		if args.debug_preview_threading:
+			print(f'Thread {os.getpid()} completed frame no: {preview_counter} ({preview_counter_out}) - {disp_img.shape} - {rr_img.shape}...')
+		if args.write_preview_preview:
+			preview_cap.write(colored_disp)
+		if args.debug_preview_threading:
+			print(f'Thread {os.getpid()} enqueuing (preview_queue_out.size: {preview_queue_out.qsize()}) frame no: {preview_counter} ({preview_counter_out}) - {disp_img.shape} - {rr_img.shape} - {filtered_disp.shape} - {colored_disp.shape}...')
+		preview_queue_out.put((preview_counter_out, filtered_disp, colored_disp))
+		'''
+
+# ------------------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------------------------
 no_of_wls_threads = 16
-wls_filter		= None
-wls_queue_in		= None
-wls_queue_out		= None
-th_pool			= None
+wls_filter			= None
+wls_queue_in			= None
+wls_queue_out			= None
+wls_th_pool			= None
 if args.wls_filter:
-	wls_filter= wlsFilter(args, _lambda=8000, _sigma=1.5, baseline=baseline, fov=fov, disp_levels=disp_levels)
-	wls_queue_in	= multiprocessing.Queue()
-	wls_queue_out	= multiprocessing.Queue()
-	th_pool		= multiprocessing.Pool(no_of_wls_threads, wls_worker, (wls_queue_in, wls_queue_out, wls_filter, ))
+	wls_filter		= wlsFilter(args, _lambda=8000, _sigma=1.5, baseline=baseline, fov=fov, disp_levels=disp_levels)
+	wls_queue_in		= multiprocessing.Queue()
+	wls_queue_out		= multiprocessing.Queue()
+	wls_th_pool		= multiprocessing.Pool(no_of_wls_threads, wls_worker, (wls_queue_in, wls_queue_out, wls_filter, ))
 	#                                                     don't forget the comma here  ^
+# ------------------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------------------------
+no_of_preview_threads = 1
+preview_filter			= None
+preview_queue_in		= None
+preview_th_pool			= None
+if args.show_preview:
+	preview_queue_in	= multiprocessing.Queue()
+	preview_th_pool		= multiprocessing.Pool(no_of_preview_threads, preview_worker, (preview_queue_in, ))
+	#                                                     don't forget the comma here  ^
+# ------------------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------------------------
 
 
 
@@ -269,6 +367,7 @@ if args.show_preview:
 		color_size = (color_width//args.preview_downscale_factor, color_height//args.preview_downscale_factor)
 		depth_size = (depth_width//args.preview_downscale_factor, depth_height//args.preview_downscale_factor)
 
+	'''
 	if args.show_colored_disp:
 		cv2.namedWindow('colored disparity',	cv2.WINDOW_NORMAL)
 		cv2.resizeWindow('colored disparity',	depth_size)
@@ -291,6 +390,7 @@ if args.show_preview:
 	if args.show_wls_preview:
 		cv2.namedWindow('WLS colored disp',	cv2.WINDOW_NORMAL)
 		cv2.resizeWindow('WLS colored disp',	depth_size)
+	'''
 
 '''
 def slowdown(x):
@@ -385,8 +485,9 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 			curr_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 			last_time = compute_fps(curr_time, last_time, start_capture_time, dequeued_frames_dict)
 
-			slowdown(100000)
+			#slowdown(100000)
 
+			'''
 			if args.show_preview:
 				# data is originally represented as a flat 1D array, it needs to be converted into HxW form
 				depth_h, depth_w = in_depth.getHeight(), in_depth.getWidth()
@@ -428,26 +529,30 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 
 				if cv2.waitKey(1) == ord('q'):			# this is the culprit! https://answers.opencv.org/question/52774/waitkey1-timing-issues-causing-frame-rate-slow-down-fix/
 					break
+			'''
 
+			disp_img = rr_img = colored_disp = None
 			if args.wls_filter:
 				in_rright = q_rright.get()
 				rr_img    = in_rright.getFrame()
 				#rr_img    = cv2.flip(rr_img, flipCode=1)
 				disp_img  = in_depth.getFrame()
 				if args.preview_downscale_factor:
-					rr_img   = cv2.resize(rr_img,   dsize=(depth_w//args.preview_downscale_factor, depth_h//args.preview_downscale_factor), interpolation=cv2.INTER_CUBIC)
-					disp_img = cv2.resize(disp_img, dsize=(depth_w//args.preview_downscale_factor, depth_h//args.preview_downscale_factor), interpolation=cv2.INTER_CUBIC)
+					rr_img   = cv2.resize(rr_img,   dsize=(depth_width//args.preview_downscale_factor, depth_height//args.preview_downscale_factor), interpolation=cv2.INTER_CUBIC)
+					disp_img = cv2.resize(disp_img, dsize=(depth_width//args.preview_downscale_factor, depth_height//args.preview_downscale_factor), interpolation=cv2.INTER_CUBIC)
 
 				if args.wls_max_queue == 0 or wls_queue_in.qsize() < args.wls_max_queue: 
 					wls_counter += 1
 					if args.debug_wls_threading:
-						print(f'Main thread enqueuing frame no: {wls_counter} because wls_queue_in.size: {wls_queue_out.qsize()}...')
+						print(f'Main thread enqueuing frame no: {wls_counter} because wls_queue_in.size: {wls_queue_in.qsize()}...')
 					#flipHorizontal = cv2.flip(rr_img, 1)
 					wls_queue_in.put((wls_counter, disp_img, rr_img))
+					'''
 					if args.show_gray_disp:
 						cv2.imshow("grayscale disparity",     disp_img)
 					if args.show_rr_img:
 						cv2.imshow("rr_img_flipH", rr_img)
+					'''
 				if args.show_wls_preview:
 					if args.wls_max_queue == 0 or wls_queue_in.qsize() < args.wls_max_queue: 
 						if args.debug_wls_threading:
@@ -458,12 +563,25 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 						wls_counter_out, filtered_disp, colored_disp = item
 						if args.debug_wls_threading:
 							print(f'Main thread got frame no: {wls_counter_out} - {filtered_disp.shape} - {colored_disp.shape}...')
-						cv2.imshow("WLS colored disp", colored_disp)
+						#cv2.imshow("WLS colored disp", colored_disp)
 
 						'''
 						if True or args.write_wls_preview:
 							wls_cap.write(colored_disp)
 						'''
+
+			if args.show_preview:
+				if args.preview_max_queue == 0 or preview_queue_in.qsize() < args.preview_max_queue: 
+					if args.debug_preview_threading:
+						print(f'Main thread enqueuing frame no: {preview_counter} because preview_queue_in.size: {preview_queue_in.qsize()}...')
+					# data is originally represented as a flat 1D array, it needs to be converted into HxW form
+					depth_h, depth_w = in_depth.getHeight(), in_depth.getWidth()
+					if args.debug_img_sizes:
+						print(f'{depth_h = } - {depth_w = }')
+					depth_frame = in_depth.getData().reshape((depth_h, depth_w)).astype(np.uint8)
+					preview_queue_in.put((preview_counter, depth_frame, disp_img, rr_img, colored_disp))
+					preview_counter += 1
+
 
 			cmap_counter += 1
 

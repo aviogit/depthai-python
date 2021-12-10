@@ -50,6 +50,7 @@ depth_resolutions = {
 	define_boolean_argument(parser, *var2opt('rectified_left'),		'Also record h265 rectified left for later use with different disparity algorithms', False)
 	define_boolean_argument(parser, *var2opt('rgb'),			'record RGB color h265 stream', True)
 	parser.add_argument('--wls-max-queue',  type=int, default=10.0,		help="drop frames after wls queue has reached max_queue")
+	parser.add_argument('--preview-max-queue',  type=int, default=10.0,	help="drop frames after preview queue has reached max_queue")
 
 	# ------------------
 	# -- OUTPUT FILES --
@@ -68,6 +69,7 @@ depth_resolutions = {
 	define_boolean_argument(parser, *var2opt('debug_pipeline_types'),	'add debugging information about captured image types'				, False)
 	define_boolean_argument(parser, *var2opt('debug_pipeline_steps'),	'add debugging information about capturing steps'				, False)
 	define_boolean_argument(parser, *var2opt('debug_wls_threading'),	'add debugging information about WLS multithreaded filtering'			, False)
+	define_boolean_argument(parser, *var2opt('debug_preview_threading'),	'add debugging information about threaded preview'				, False)
 
 	# ------------------
 	# -- VIEW OPTIONS --
