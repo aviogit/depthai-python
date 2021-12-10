@@ -67,14 +67,20 @@ depth_resolutions = {
 	define_boolean_argument(parser, *var2opt('debug_img_sizes'),		'add debugging information about captured image sizes'				, False)
 	define_boolean_argument(parser, *var2opt('debug_pipeline_types'),	'add debugging information about captured image types'				, False)
 	define_boolean_argument(parser, *var2opt('debug_pipeline_steps'),	'add debugging information about capturing steps'				, False)
+	define_boolean_argument(parser, *var2opt('debug_wls_threading'),	'add debugging information about WLS multithreaded filtering'			, False)
 
 	# ------------------
 	# -- VIEW OPTIONS --
 	# ------------------
-	define_boolean_argument(parser, *var2opt('show_preview'),		'show OpenCV windows with the captured images'					, False)
-	define_boolean_argument(parser, *var2opt('show_wls_preview'),		'show host-side WLS filtering made with OpenCV'					, False)
-	define_boolean_argument(parser, *var2opt('write_preview'),		'write the captured images in OpenCV (JPG/PNG) format'				, True)
-	define_boolean_argument(parser, *var2opt('write_wls_preview'),		'write host-side WLS filtering images made with OpenCV (JPG/PNG) format'	, True)
+	define_boolean_argument(parser, *var2opt('show_preview'),		'global switch to show OpenCV windows with the captured images'			, False)
+	define_boolean_argument(parser, *var2opt('show_wls_preview'),		'show host-side WLS-filtered disparity made with OpenCV (heavy)'		, True)
+	define_boolean_argument(parser, *var2opt('write_preview'),		'write the captured images in OpenCV (JPG/PNG) format'				, False)
+	define_boolean_argument(parser, *var2opt('write_wls_preview'),		'write host-side WLS filtering images made with OpenCV (JPG/PNG) format'	, False)
+	define_boolean_argument(parser, *var2opt('show_rgb'),			'show preview of RGB image'							, False)
+	define_boolean_argument(parser, *var2opt('show_colored_disp'),		'show colored preview of raw disparity'						, True)
+	define_boolean_argument(parser, *var2opt('show_gray_disp'),		'show grayscale preview of raw disparity'					, False)
+	define_boolean_argument(parser, *var2opt('show_rr_img'),		'show preview of (flipped) rectified right'					, True)
+	define_boolean_argument(parser, *var2opt('show_th_disp'),		'show preview of tresholded disparity'						, False)
 
 	'''
 	parser.set_defaults(show_fps=False)

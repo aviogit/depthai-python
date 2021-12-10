@@ -43,8 +43,12 @@ class wlsFilter:
 
 		self.debug       = False
 
+		'''
 		if args.show_wls_preview:
 			cv2.namedWindow(self.wlsStream)
+			cv2.namedWindow("wls raw depth")
+			cv2.namedWindow("wls colored disp")
+		'''
 		'''
 		self.lambdaTrackbar = trackbar('Lambda', self.wlsStream, 0, 255, 80, self.on_trackbar_change_lambda)
 		self.sigmaTrackbar  = trackbar('Sigma',  self.wlsStream, 0, 100, 15, self.on_trackbar_change_sigma)
@@ -72,17 +76,33 @@ class wlsFilter:
 		depth_scale_factor = self.baseline * focal
 	
 		filtered_disp, depth_frame = self.filter(disp_img, rr_img, depth_scale_factor)
-	
+
+		'''
+		print(f'apply_wls_filter() is about to show raw depth...')
 		if self.args.show_wls_preview:
 			cv2.imshow("wls raw depth", depth_frame)
-	
+		'''
+
 		filtered_disp = (filtered_disp * (255/(self.disp_levels-1))).astype(np.uint8)
+
+		'''
+		print(f'apply_wls_filter() is about to show filtered disparity...')
 		if self.args.show_wls_preview:
 			cv2.imshow(wlsFilter.wlsStream, filtered_disp)
+		'''
 	
 		colored_disp = cv2.applyColorMap(filtered_disp, cv2.COLORMAP_HOT)
+
+		'''
+		print(f'apply_wls_filter() is about to show colored disparity...')
 		if self.args.show_wls_preview:
 			cv2.imshow("wls colored disp", colored_disp)
+		'''
+
+		'''
+		if self.args.show_wls_preview:
+			cv2.waitKey(1)
+		'''
 	
 		return counter, filtered_disp, colored_disp
 

@@ -170,32 +170,47 @@ baseline = 75 #mm
 disp_levels = 96
 fov = 71.86
 
+# ------------------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------------------------
 wls_data    = []	# filtered_disp, colored_disp = pool.map(apply_wls_filter, (disp_imgs, rr_imgs))
 wls_results = []
 wls_counter = 0
 
-def wls_worker(queue, wlsFilter):
+def wls_worker(queue_in, queue_out, wlsFilter):
 	print(f'Thread {os.getpid()} starting...')
 	while True:
-		print(f'Thread {os.getpid()} dequeuing...')
-		item = queue.get(True)
-		print(f'Thread {os.getpid()} got item {type(item)}...')
+		if args.debug_wls_threading:
+			print(f'Thread {os.getpid()} dequeuing (wls_queue_in.size: {wls_queue_in.qsize()})...')
+		item = queue_in.get(True)
+		if args.debug_wls_threading:
+			print(f'Thread {os.getpid()} got item {type(item)}...')
 		wls_counter, disp_img, rr_img = item
-		print(f'Thread {os.getpid()} got frames no: {wls_counter} - {disp_img.shape} - {rr_img.shape}...')
+		if args.debug_wls_threading:
+			print(f'Thread {os.getpid()} got frame no: {wls_counter} - {disp_img.shape} - {rr_img.shape}...')
 		wls_data = (wls_counter, disp_img, rr_img)
 		wls_counter_out, filtered_disp, colored_disp = wlsFilter.apply_wls_filter(wls_data)
-		print(f'Thread {os.getpid()} completed frames no: {wls_counter} ({wls_counter_out}) - {disp_img.shape} - {rr_img.shape}...')
-		if True or args.write_wls_preview:
+		if args.debug_wls_threading:
+			print(f'Thread {os.getpid()} completed frame no: {wls_counter} ({wls_counter_out}) - {disp_img.shape} - {rr_img.shape}...')
+		if args.write_wls_preview:
 			wls_cap.write(colored_disp)
+		if args.debug_wls_threading:
+			print(f'Thread {os.getpid()} enqueuing (wls_queue_out.size: {wls_queue_out.qsize()}) frame no: {wls_counter} ({wls_counter_out}) - {disp_img.shape} - {rr_img.shape} - {filtered_disp.shape} - {colored_disp.shape}...')
+		wls_queue_out.put((wls_counter_out, filtered_disp, colored_disp))
+# ------------------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------------------------
 
 no_of_wls_threads = 8
-wls_filter        = None
-wls_queue         = None
-th_pool           = None
+wls_filter		= None
+wls_queue_in		= None
+wls_queue_out		= None
+th_pool			= None
 if args.wls_filter:
-	wls_filter = wlsFilter(args, _lambda=8000, _sigma=1.5, baseline=baseline, fov=fov, disp_levels=disp_levels)
-	wls_queue  = multiprocessing.Queue()
-	th_pool    = multiprocessing.Pool(no_of_wls_threads, wls_worker, (wls_queue, wls_filter, ))
+	wls_filter= wlsFilter(args, _lambda=8000, _sigma=1.5, baseline=baseline, fov=fov, disp_levels=disp_levels)
+	wls_queue_in	= multiprocessing.Queue()
+	wls_queue_out	= multiprocessing.Queue()
+	th_pool		= multiprocessing.Pool(no_of_wls_threads, wls_worker, (wls_queue_in, wls_queue_out, wls_filter, ))
 	#                                                     don't forget the comma here  ^
 
 
@@ -248,21 +263,28 @@ if args.wls_filter or args.rectified_right:
 
 
 if args.show_preview:
-	cv2.namedWindow('disparity',cv2.WINDOW_NORMAL)
-	cv2.resizeWindow('disparity', int(color_width/2), int(color_height/2))
+	if args.show_colored_disp:
+		cv2.namedWindow('colored disparity',	cv2.WINDOW_NORMAL)
+		cv2.resizeWindow('colored disparity',	int(color_width/2), int(color_height/2))
 
-	cv2.namedWindow('disparity th',cv2.WINDOW_NORMAL)
-	cv2.resizeWindow('disparity th', int(color_width/2), int(color_height/2))
+	if args.show_th_disp:
+		cv2.namedWindow('disparity th',		cv2.WINDOW_NORMAL)
+		cv2.resizeWindow('disparity th',	int(color_width/2), int(color_height/2))
+	if args.show_gray_disp:
+		cv2.namedWindow('grayscale disparity',	cv2.WINDOW_NORMAL)
+		cv2.resizeWindow('grayscale disparity',	int(color_width/2), int(color_height/2))
 
-	cv2.namedWindow('rgb',cv2.WINDOW_NORMAL)
-	cv2.resizeWindow('rgb', int(color_width/2), int(color_height/2))
+	if args.show_rgb:
+		cv2.namedWindow('rgb',				cv2.WINDOW_NORMAL)
+		cv2.resizeWindow('rgb', int(color_width/2),	int(color_height/2))
 
-	cv2.namedWindow('combo',cv2.WINDOW_NORMAL)
-	cv2.resizeWindow('combo', int(color_width/2), int(color_height/2))
+	if False:
+		cv2.namedWindow('combo',			cv2.WINDOW_NORMAL)
+		cv2.resizeWindow('combo', int(color_width/2), int(color_height/2))
 
 	if args.show_wls_preview:
-		cv2.namedWindow('WLS',cv2.WINDOW_NORMAL)
-		cv2.resizeWindow('WLS', int(color_width/2), int(color_height/2))
+		cv2.namedWindow('WLS colored disp',	cv2.WINDOW_NORMAL)
+		cv2.resizeWindow('WLS colored disp',	int(color_width/2), int(color_height/2))
 
 
 # Pipeline defined, now the device is connected to
@@ -366,23 +388,26 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 				if args.debug_img_sizes:
 					print(f'{depth_frame.shape = } - {len(depth_frame) = } - {type(depth_frame) = } - {depth_frame.size = }')
 				depth_frame_orig = cv2.normalize(depth_frame, None, 0, 255, cv2.NORM_MINMAX)
-				depth_frame = np.ascontiguousarray(depth_frame_orig)
-				# depth_frame is transformed, the color map will be applied to highlight the depth info
-				depth_frame = apply_colormap(depth_frame, cmap=13)
-				# depth_frame is ready to be shown
-				cv2.imshow("disparity", depth_frame)
+
+				if args.show_colored_disp:
+					depth_frame = np.ascontiguousarray(depth_frame_orig)
+					# depth_frame is transformed, the color map will be applied to highlight the depth info
+					depth_frame = apply_colormap(depth_frame, cmap=13)
+					# depth_frame is ready to be shown
+					cv2.imshow("colored disparity", depth_frame)
 		
 				# Retrieve 'bgr' (opencv format) frame
-				if False:
+				if args.show_rgb:
 					rgb_frame = in_rgb.getCvFrame()
 					if args.debug_img_sizes:
 						print(f'{rgb_frame.shape = } - {len(rgb_frame) = } - {type(rgb_frame) = } - {rgb_frame.size = }')
 					cv2.imshow("rgb", rgb_frame)
 
 				#img_grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-				depth_frame_th = cv2.adaptiveThreshold(depth_frame_orig, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
-				cv2.imshow("disparity th", depth_frame_th)
-				depth_frame_th_color = cv2.cvtColor(depth_frame_th, cv2.COLOR_GRAY2BGR)
+				if args.show_th_disp:
+					depth_frame_th = cv2.adaptiveThreshold(depth_frame_orig, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+					cv2.imshow("disparity th", depth_frame_th)
+					depth_frame_th_color = cv2.cvtColor(depth_frame_th, cv2.COLOR_GRAY2BGR)
 
 				if False:
 					rgb_frame_resized = cv2.resize(rgb_frame, dsize=(depth_w, depth_h), interpolation=cv2.INTER_CUBIC)
@@ -395,13 +420,35 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 			if use_wls_filter:
 				in_rright = q_rright.get()
 				rr_img    = in_rright.getFrame()
-				rr_img    = cv2.flip(rr_img, flipCode=1)
+				#rr_img    = cv2.flip(rr_img, flipCode=1)
 				disp_img  = in_depth.getFrame()
 
-				if args.wls_max_queue == 0 or wls_queue.qsize() < args.wls_max_queue: 
+				if args.wls_max_queue == 0 or wls_queue_in.qsize() < args.wls_max_queue: 
 					wls_counter += 1
-					print(f'Main thread enqueuing frame no: {wls_counter} because queue size is: {wls_queue.qsize()}...')
-					wls_queue.put((wls_counter, disp_img, rr_img))
+					if args.debug_wls_threading:
+						print(f'Main thread enqueuing frame no: {wls_counter} because wls_queue_in.size: {wls_queue_out.qsize()}...')
+					#flipHorizontal = cv2.flip(rr_img, 1)
+					wls_queue_in.put((wls_counter, disp_img, rr_img))
+					if args.show_gray_disp:
+						cv2.imshow("grayscale disparity",     disp_img)
+					if args.show_rr_img:
+						cv2.imshow("rr_img_flipH", rr_img)
+				if args.show_wls_preview:
+					if args.wls_max_queue == 0 or wls_queue_in.qsize() < args.wls_max_queue: 
+						if args.debug_wls_threading:
+							print(f'Main thread dequeuing frame because wls_queue_out.size: {wls_queue_out.qsize()}...')
+						item = wls_queue_out.get(True)
+						if args.debug_wls_threading:
+							print(f'Main thread got item {type(item)}...')
+						wls_counter_out, filtered_disp, colored_disp = item
+						if args.debug_wls_threading:
+							print(f'Main thread got frame no: {wls_counter_out} - {filtered_disp.shape} - {colored_disp.shape}...')
+						cv2.imshow("WLS colored disp", colored_disp)
+
+						'''
+						if True or args.write_wls_preview:
+							wls_cap.write(colored_disp)
+						'''
 
 			cmap_counter += 1
 
