@@ -71,7 +71,8 @@ class wlsFilter:
 		if self.debug:
 			print(type(wls_data_item))
 		counter, disp_img, rr_img = wls_data_item
-		print(f'Running apply_wls_filter() thread for item no.: {counter} and imgs: {disp_img.shape} - {rr_img.shape}')
+		if self.args.debug_wls_threading:
+			print(f'Running apply_wls_filter() thread for item no.: {counter} and imgs: {disp_img.shape} - {rr_img.shape}')
 		focal = disp_img.shape[1] / (2. * math.tan(math.radians(self.fov / 2)))
 		depth_scale_factor = self.baseline * focal
 	

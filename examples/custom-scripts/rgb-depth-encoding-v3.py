@@ -201,7 +201,7 @@ def wls_worker(queue_in, queue_out, wlsFilter):
 # ------------------------------------------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------------------------------------
 
-no_of_wls_threads = 8
+no_of_wls_threads = 16
 wls_filter		= None
 wls_queue_in		= None
 wls_queue_out		= None
@@ -263,29 +263,44 @@ if args.wls_filter or args.rectified_right:
 
 
 if args.show_preview:
+	depth_size = (depth_width, depth_height)
+	color_size = (color_width, color_height)
+	if args.preview_downscale_factor != 1:
+		color_size = (color_width//args.preview_downscale_factor, color_height//args.preview_downscale_factor)
+		depth_size = (depth_width//args.preview_downscale_factor, depth_height//args.preview_downscale_factor)
+
 	if args.show_colored_disp:
 		cv2.namedWindow('colored disparity',	cv2.WINDOW_NORMAL)
-		cv2.resizeWindow('colored disparity',	int(color_width/2), int(color_height/2))
+		cv2.resizeWindow('colored disparity',	depth_size)
 
 	if args.show_th_disp:
 		cv2.namedWindow('disparity th',		cv2.WINDOW_NORMAL)
-		cv2.resizeWindow('disparity th',	int(color_width/2), int(color_height/2))
+		cv2.resizeWindow('disparity th',	depth_size)
 	if args.show_gray_disp:
 		cv2.namedWindow('grayscale disparity',	cv2.WINDOW_NORMAL)
-		cv2.resizeWindow('grayscale disparity',	int(color_width/2), int(color_height/2))
+		cv2.resizeWindow('grayscale disparity',	depth_size)
 
 	if args.show_rgb:
-		cv2.namedWindow('rgb',				cv2.WINDOW_NORMAL)
-		cv2.resizeWindow('rgb', int(color_width/2),	int(color_height/2))
+		cv2.namedWindow('rgb',			cv2.WINDOW_NORMAL)
+		cv2.resizeWindow('rgb',			color_size)
 
 	if False:
-		cv2.namedWindow('combo',			cv2.WINDOW_NORMAL)
-		cv2.resizeWindow('combo', int(color_width/2), int(color_height/2))
+		cv2.namedWindow('combo',		cv2.WINDOW_NORMAL)
+		cv2.resizeWindow('combo',		color_size)
 
 	if args.show_wls_preview:
 		cv2.namedWindow('WLS colored disp',	cv2.WINDOW_NORMAL)
-		cv2.resizeWindow('WLS colored disp',	int(color_width/2), int(color_height/2))
+		cv2.resizeWindow('WLS colored disp',	depth_size)
 
+'''
+def slowdown(x):
+	y = 1
+	for i in range(1, x+1):
+		y *= i
+	return y
+'''
+
+#from slowdown import slowdown
 
 # Pipeline defined, now the device is connected to
 with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
@@ -370,12 +385,16 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 			curr_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 			last_time = compute_fps(curr_time, last_time, start_capture_time, dequeued_frames_dict)
 
+			slowdown(100000)
+
 			if args.show_preview:
 				# data is originally represented as a flat 1D array, it needs to be converted into HxW form
 				depth_h, depth_w = in_depth.getHeight(), in_depth.getWidth()
 				if args.debug_img_sizes:
 					print(f'{depth_h = } - {depth_w = }')
 				depth_frame = in_depth.getData().reshape((depth_h, depth_w)).astype(np.uint8)
+				if args.preview_downscale_factor != 1:
+					depth_frame = cv2.resize(depth_frame, dsize=(depth_w//args.preview_downscale_factor, depth_h//args.preview_downscale_factor), interpolation=cv2.INTER_CUBIC)
 				if args.debug_img_sizes:
 					print(f'{depth_frame.shape = } - {len(depth_frame) = } - {type(depth_frame) = } - {depth_frame.size = }')
 				depth_frame_orig = cv2.normalize(depth_frame, None, 0, 255, cv2.NORM_MINMAX)
@@ -390,6 +409,8 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 				# Retrieve 'bgr' (opencv format) frame
 				if args.show_rgb:
 					rgb_frame = in_rgb.getCvFrame()
+					if args.preview_downscale_factor != 1:
+						rgb_frame = cv2.resize(rgb_frame, dsize=(color_width//args.preview_downscale_factor, color_height//args.preview_downscale_factor), interpolation=cv2.INTER_CUBIC)
 					if args.debug_img_sizes:
 						print(f'{rgb_frame.shape = } - {len(rgb_frame) = } - {type(rgb_frame) = } - {rgb_frame.size = }')
 					cv2.imshow("rgb", rgb_frame)
@@ -405,7 +426,7 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 					combo = (rgb_frame_resized + depth_frame_th_color) / 2
 					cv2.imshow("combo", combo)
 
-				if cv2.waitKey(1) == ord('q'):
+				if cv2.waitKey(1) == ord('q'):			# this is the culprit! https://answers.opencv.org/question/52774/waitkey1-timing-issues-causing-frame-rate-slow-down-fix/
 					break
 
 			if args.wls_filter:
@@ -413,6 +434,9 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 				rr_img    = in_rright.getFrame()
 				#rr_img    = cv2.flip(rr_img, flipCode=1)
 				disp_img  = in_depth.getFrame()
+				if args.preview_downscale_factor:
+					rr_img   = cv2.resize(rr_img,   dsize=(depth_w//args.preview_downscale_factor, depth_h//args.preview_downscale_factor), interpolation=cv2.INTER_CUBIC)
+					disp_img = cv2.resize(disp_img, dsize=(depth_w//args.preview_downscale_factor, depth_h//args.preview_downscale_factor), interpolation=cv2.INTER_CUBIC)
 
 				if args.wls_max_queue == 0 or wls_queue_in.qsize() < args.wls_max_queue: 
 					wls_counter += 1

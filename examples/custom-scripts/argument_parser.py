@@ -81,6 +81,7 @@ depth_resolutions = {
 	define_boolean_argument(parser, *var2opt('show_gray_disp'),		'show grayscale preview of raw disparity'					, False)
 	define_boolean_argument(parser, *var2opt('show_rr_img'),		'show preview of (flipped) rectified right'					, True)
 	define_boolean_argument(parser, *var2opt('show_th_disp'),		'show preview of tresholded disparity'						, False)
+	parser.add_argument('--preview-downscale-factor',  type=int, default=1,	help="downscale all the previewed images by a factor of x (default: 1)")
 
 	'''
 	parser.set_defaults(show_fps=False)
