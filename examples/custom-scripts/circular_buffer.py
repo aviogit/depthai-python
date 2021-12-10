@@ -55,6 +55,7 @@ class CircularBuffer:
     def __repr__(self):
         """String representation of circular buffer."""
         if self.isEmpty():
-            return 'cb:[]'
+            return f'{id(self.buffer)} - EMPTY cb: {self.count} - {self.high} - {self.low}'
+        return f'{id(self.buffer)} - cb: {self.count} - {self.high} - {self.low}'
 
-        return 'cb:[' + ','.join(map(str,self)) + ']'
+        #return 'cb:[' + ','.join(map(str,self)) + ']'

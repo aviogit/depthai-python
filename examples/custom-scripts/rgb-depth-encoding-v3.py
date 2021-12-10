@@ -256,12 +256,19 @@ def wls_worker(queue_in, queue_out, wlsFilter):
 preview_data    = []
 preview_counter = 0
 
-def preview_worker(queue_in):
+#def preview_worker(preview_queue_in):
+def preview_worker():
+	global ringbuffer
 	print(f'preview_worker() thread {os.getpid()} starting...')
 	while True:
 		if args.debug_preview_threading:
-			print(f'Thread {os.getpid()} dequeuing (preview_queue_in.size: {preview_queue_in.qsize()})...')
-		item = queue_in.get(True)
+			#print(f'Thread {os.getpid()} dequeuing (preview_queue_in.size: {preview_queue_in.qsize()})...')
+			print(f'Thread {os.getpid()} dequeuing (len(ringbuffer): {len(ringbuffer)}) - {ringbuffer}...')
+		#item = preview_queue_in.get(True)
+		if ringbuffer.isEmpty():
+			time.sleep(0.1)
+			continue
+		item = ringbuffer.remove()
 		if args.debug_preview_threading:
 			print(f'Thread {os.getpid()} got item {type(item)}...')
 		preview_counter, depth_frame, disp_img, rr_img, colored_disp = item
@@ -269,6 +276,11 @@ def preview_worker(queue_in):
 			print(f'Thread {os.getpid()} got frame no: {preview_counter} - {depth_frame.shape}...')
 
 		preview_thread_impl(args, preview_counter, depth_frame, disp_img, rr_img, colored_disp)
+
+		'''
+		if cv2.waitKey(1) == ord('q'):			# this is the culprit! https://answers.opencv.org/question/52774/waitkey1-timing-issues-causing-frame-rate-slow-down-fix/
+			return
+		'''
 
 		'''
 		preview_data = (preview_counter, disp_img, rr_img)
@@ -301,11 +313,12 @@ if args.wls_filter:
 # ------------------------------------------------------------------------------------------------------------------------------------------
 no_of_preview_threads = 1
 preview_filter			= None
-preview_queue_in		= None
+#preview_queue_in		= None
 preview_th_pool			= None
 if args.show_preview:
-	preview_queue_in	= multiprocessing.Queue()
-	preview_th_pool		= multiprocessing.Pool(no_of_preview_threads, preview_worker, (preview_queue_in, ))
+	#preview_queue_in	= multiprocessing.Queue()
+	#preview_th_pool		= multiprocessing.Pool(no_of_preview_threads, preview_worker, (preview_queue_in, ))
+	preview_th_pool		= multiprocessing.Pool(no_of_preview_threads, preview_worker, ( ))
 	#                                                     don't forget the comma here  ^
 # ------------------------------------------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------------------------------------
@@ -571,15 +584,20 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 						'''
 
 			if args.show_preview:
-				if args.preview_max_queue == 0 or preview_queue_in.qsize() < args.preview_max_queue: 
+				#if args.preview_max_queue == 0 or preview_queue_in.qsize() < args.preview_max_queue: 
+				if True:
 					if args.debug_preview_threading:
-						print(f'Main thread enqueuing frame no: {preview_counter} because preview_queue_in.size: {preview_queue_in.qsize()}...')
+						#print(f'Main thread enqueuing frame no: {preview_counter} because preview_queue_in.size: {preview_queue_in.qsize()}...')
+						print(f'Main thread enqueuing frame no: {preview_counter} because len(ringbuffer): {len(ringbuffer)}...')
 					# data is originally represented as a flat 1D array, it needs to be converted into HxW form
 					depth_h, depth_w = in_depth.getHeight(), in_depth.getWidth()
 					if args.debug_img_sizes:
 						print(f'{depth_h = } - {depth_w = }')
 					depth_frame = in_depth.getData().reshape((depth_h, depth_w)).astype(np.uint8)
-					preview_queue_in.put((preview_counter, depth_frame, disp_img, rr_img, colored_disp))
+					#preview_queue_in.put((preview_counter, depth_frame, disp_img, rr_img, colored_disp))
+					if not ringbuffer.isFull():
+						ringbuffer.add((preview_counter, depth_frame, disp_img, rr_img, colored_disp))
+					print(f'len(ringbuffer): {len(ringbuffer)} - {ringbuffer}...')
 					preview_counter += 1
 
 
