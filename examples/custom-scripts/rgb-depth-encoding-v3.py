@@ -70,7 +70,7 @@ def preview_thread_impl(args, preview_counter, depth_frame, disp_img, rr_img, co
 		cv2.imshow("grayscale disparity",	disp_img)
 	if args.show_rr_img and rr_img is not None:
 		cv2.imshow("rr_img",			rr_img)
-	if args.show_wls_preview:
+	if args.show_wls_preview and args.show_wls_preview:
 		cv2.imshow("WLS colored disp",		colored_disp)
 
 	if cv2.waitKey(1) == ord('q'):			# this is the culprit! https://answers.opencv.org/question/52774/waitkey1-timing-issues-causing-frame-rate-slow-down-fix/
