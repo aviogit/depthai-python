@@ -11,6 +11,7 @@ from pathlib import Path
 from argument_parser import define_boolean_argument, var2opt
 
 from colormaps import apply_colormap
+from globber import globber
 
 # Launch with:
 
@@ -49,7 +50,7 @@ if args.mp4:
 else:
 	mp4_suffix	= ''
 
-
+'''
 depth_fn = glob.glob(f'depth-{args.prefix}*h265{mp4_suffix}')
 if args.rectright:
 	main_fn	= glob.glob(f'rectright-{args.prefix}*h265{mp4_suffix}')
@@ -61,6 +62,8 @@ else:
 	if len(main_fn) == 0:
 		main_fn	 = glob.glob(f'*{args.prefix}-color*h265{mp4_suffix}')
 		depth_fn = glob.glob(f'*{args.prefix}-disp*h265{mp4_suffix}')
+'''
+main_fn, depth_fn = globber(args.prefix, args.rectright, mp4_suffix)
 
 print(f'Found file(s): {main_fn} {depth_fn}')
 main_fn = main_fn[0]
@@ -176,8 +179,16 @@ while cap.isOpened():
 		combo = cv2.resize(combo, tuple(new_size))
 
 	if key & 0xFF == ord('s'):
-		cv2.imwrite(f'/tmp/l-{frame_counter}.jpg', lframe);
-		cv2.imwrite(f'/tmp/r-{frame_counter}.jpg', rframe);
+		if args.disparity:
+			dframe_colored = cv2.normalize(dframe, None, 0, 255, cv2.NORM_MINMAX)
+			dframe_colored = apply_colormap(dframe_colored, cmap=13)
+			cv2.imwrite(f'/tmp/d-{frame_counter}.jpg', dframe_colored);
+		else:
+			cv2.imwrite(f'/tmp/l-{frame_counter}.jpg', lframe);
+		if args.rectright:
+			cv2.imwrite(f'/tmp/r-{frame_counter}.jpg', rframe);
+		else:
+			cv2.imwrite(f'/tmp/c-{frame_counter}.jpg', cframe);
 		print(f'Saved frame no.: {frame_counter}')
 
 	cv2.imshow('frame', combo)

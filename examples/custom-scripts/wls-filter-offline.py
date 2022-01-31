@@ -12,19 +12,22 @@ import shlex
 from pathlib import Path
 
 from argument_parser import define_boolean_argument, var2opt
+from globber import globber
 
 from utils import wlsFilter
 
-debug = False
+#debug = False
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--prefix', nargs='?', help="color-/left-/right-<prefix>.h265 video files will be used")
-parser.add_argument('--start-frame', default=0, type=int, help='start frame for start replaying the video triplet')
+#parser.add_argument('--start-frame', default=0, type=int, help='start frame for start replaying the video triplet')
 parser.add_argument('--format', default='h265', help="encoding output file format")
 define_boolean_argument(parser, *var2opt('disparity'), 'capture disparity instead of left/right streams', False)
 define_boolean_argument(parser, *var2opt('wls_disparity'), 'capture wls disparity instead of left/right or normal disparity streams', True)
 define_boolean_argument(parser, *var2opt('show_wls_preview'), 'show host-side WLS filtering made with OpenCV', False)
 define_boolean_argument(parser, *var2opt('preview'), 'show images during disparity conversion', False)
+define_boolean_argument(parser, *var2opt('debug_wls_threading'),	'add debugging information about WLS multithreaded filtering'			, False)
+define_boolean_argument(parser, *var2opt('debug'),	'add debugging information'			, False)
 args = parser.parse_args()
 
 if args.prefix is None:
@@ -32,18 +35,24 @@ if args.prefix is None:
 	sys.exit(0)
 
 
-baseline = 75 #mm
+#baseline = 75 #mm
+baseline = 140 #mm
 disp_levels = 96
 fov = 71.86
 
 wlsFilter = wlsFilter(args, _lambda=8000, _sigma=1.5, baseline=baseline, fov=fov, disp_levels=disp_levels)
 
-depth_cap  = cv2.VideoCapture(f'depth-{args.prefix}.h265')
+main_fn, depth_fn = globber(args.prefix, args_rectright=True)
+print(f'Found files: {main_fn} {depth_fn}')
+main_fn  = main_fn[0]
+depth_fn = depth_fn[0]
+
+depth_cap  = cv2.VideoCapture(f'{depth_fn}')
 depth_len  = int(depth_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-rright_cap = cv2.VideoCapture(f'rectright-{args.prefix}.h265')
+rright_cap = cv2.VideoCapture(f'{main_fn}')
 rright_len = int(rright_cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-process = sp.Popen(shlex.split(f'ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=nb_read_packets -of csv=p=0 depth-{args.prefix}.h265'), stdout=sp.PIPE)
+process = sp.Popen(shlex.split(f'ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=nb_read_packets -of csv=p=0 {depth_fn}'), stdout=sp.PIPE)
 # Wait for sub-process to finish
 process.wait()
 line = process.stdout.readline()
@@ -64,7 +73,8 @@ elif 'mjpg' in args.format.lower() or 'mjpeg' in args.format.lower():
 	vcodec = 'mjpeg'
 
 wls_outfn = f'wls-{args.prefix}-{vcodec}.mp4'
-depth_fps, depth_width, depth_height =  60, 1280, 720
+#depth_fps, depth_width, depth_height =  60, 1280, 720
+depth_fps, depth_width, depth_height =  60, 640, 400
 #wls_cap = cv2.VideoWriter(wls_outfn, cv2.VideoWriter.fourcc('M','J','P','G'), depth_fps, (depth_width, depth_height))
 #wls_cap = cv2.VideoWriter(wls_outfn, cv2.VideoWriter.fourcc('A','V','C','1'), depth_fps, (depth_width, depth_height))
 #wls_cap = cv2.VideoWriter(wls_outfn, cv2.VideoWriter_fourcc(*'avc1'), depth_fps, (depth_width, depth_height))
@@ -120,7 +130,7 @@ while depth_cap.isOpened() and rright_cap.isOpened():
 		break
 	small_size	= (dframe.shape[1], dframe.shape[0])
 
-	if debug:
+	if args.debug:
 		print(f'{dframe.shape} - {rrframe.shape} - {small_size}')
 
 	disp_gray	= cv2.cvtColor(dframe, cv2.COLOR_BGR2GRAY)
@@ -139,7 +149,7 @@ while depth_cap.isOpened() and rright_cap.isOpened():
 	perc = 10000.0 * counter / ffprobe_nframes
 	if perc != prev_perc:
 		print(f'Progress: {int(perc)/100.0}% ', end='')
-	if debug:
+	if args.debug:
 		print(f'{counter = } - {perc = } - {prev_perc}')
 
 	if args.preview:
