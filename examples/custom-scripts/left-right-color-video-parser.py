@@ -10,6 +10,7 @@ from pathlib import Path
 
 from argument_parser import define_boolean_argument, var2opt
 
+from colormaps import apply_colormap
 
 # Launch with:
 
@@ -27,7 +28,8 @@ def get_quarter_img(frame, show_quarter_img):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--prefix', nargs='?', help="color-/left-/right-<prefix>.h265(.mp4) video files will be used")
-parser.add_argument('--start-frame', default=0, type=int, help='start frame for start replaying the video triplet')
+parser.add_argument('--start-frame', default=0, type=int, help='start frame for start replaying the video pair (or triplet)')
+parser.add_argument('--fps', default=30, type=int, help='use that FPS replaying the video pair (or triplet)')
 parser.add_argument('--resize', default='', type=str, help='resize image pairs to WxH resolution (e.g. --resize 640x480')
 define_boolean_argument(parser, *var2opt('disparity'), 'capture disparity instead of left/right streams', False)
 define_boolean_argument(parser, *var2opt('wls_disparity'), 'capture wls disparity instead of left/right or normal disparity streams', True)
@@ -35,6 +37,8 @@ define_boolean_argument(parser, *var2opt('rectright'), 'capture rectright instea
 define_boolean_argument(parser, *var2opt('rect'), 'prepend the "rect" prefix to left and right to open rectleft and rectright instead of just left/right', False)
 define_boolean_argument(parser, *var2opt('mp4'), 'postpone the "mp4" suffix to file names to open .h265.mp4 files instead of just .h265 files', False)
 args = parser.parse_args()
+
+print(f'Received arguments: {args}')
 
 if args.prefix is None:
 	print(f'Please specify a valid prefix for video files. Exiting...')
@@ -45,19 +49,27 @@ if args.mp4:
 else:
 	mp4_suffix	= ''
 
+
+depth_fn = glob.glob(f'depth-{args.prefix}*h265{mp4_suffix}')
 if args.rectright:
 	main_fn	= glob.glob(f'rectright-{args.prefix}*h265{mp4_suffix}')
+	if len(main_fn) == 0:
+		main_fn  = glob.glob(f'*{args.prefix}-rectright*h265{mp4_suffix}')
+		depth_fn = glob.glob(f'*{args.prefix}-disp*h265{mp4_suffix}')
 else:
 	main_fn	= glob.glob(f'color-{args.prefix}*h265{mp4_suffix}')
+	if len(main_fn) == 0:
+		main_fn	 = glob.glob(f'*{args.prefix}-color*h265{mp4_suffix}')
+		depth_fn = glob.glob(f'*{args.prefix}-disp*h265{mp4_suffix}')
 
-print(f'Found main file(s): {main_fn}')
+print(f'Found file(s): {main_fn} {depth_fn}')
 main_fn = main_fn[0]
 print(f'Opening main file: {main_fn}')
 cap			= cv2.VideoCapture(f'{main_fn}')
 caplen			= int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
 if args.disparity:
-	depth_cap	= cv2.VideoCapture(f'depth-{args.prefix}.h265{mp4_suffix}')
+	depth_cap	= cv2.VideoCapture(f'{depth_fn[0]}')
 	depth_len	= int(depth_cap.get(cv2.CAP_PROP_FRAME_COUNT))
 	print(f'{caplen = } - {depth_len = }')
 elif args.wls_disparity:
@@ -112,7 +124,8 @@ while cap.isOpened():
 		if not left_cap.isOpened() or not right_cap.isOpened():
 			break
 
-	delay_ms = 1 #if args.continuous else 0
+	#delay_ms = 1 #if args.continuous else 0
+	delay_ms = int(1000 / args.fps)
 	if pause:
 		delay_ms = 100
 	key = cv2.waitKey(delay_ms)
@@ -144,7 +157,8 @@ while cap.isOpened():
 		dframe_s = get_quarter_img(dframe, show_quarter_img)
 		dframe_s = cv2.medianBlur(dframe_s, 5)
 		dframe_s = cv2.normalize(dframe_s, None, 0, 255, cv2.NORM_MINMAX)
-		dframe_s = cv2.applyColorMap(dframe_s, cv2.COLORMAP_JET)
+		#dframe_s = cv2.applyColorMap(dframe_s, cv2.COLORMAP_JET)
+		dframe_s = apply_colormap(dframe_s, cmap=13)
 
 		combo = np.concatenate((cframe_s, dframe_s), axis=0)
 	elif args.wls_disparity:
