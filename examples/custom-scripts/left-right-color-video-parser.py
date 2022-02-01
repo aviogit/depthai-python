@@ -153,8 +153,8 @@ while cap.isOpened():
 		rret, rframe = right_cap.read()
 		small_size = (cframe.shape[1], cframe.shape[0])
 
-	cframe   = cv2.resize(cframe, small_size)
-	cframe_s = get_quarter_img(cframe, show_quarter_img)
+	cframe_s = cv2.resize(cframe, small_size)
+	cframe_s = get_quarter_img(cframe_s, show_quarter_img)
 
 	if args.disparity:
 		dframe_s = get_quarter_img(dframe, show_quarter_img)
@@ -191,6 +191,8 @@ while cap.isOpened():
 			cv2.imwrite(f'/tmp/c-{frame_counter}.jpg', cframe);
 		print(f'Saved frame no.: {frame_counter}')
 
+	cv2.putText(combo, f'{frame_counter} - {(frame_counter/args.fps):.2f}', (52,52), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 2)
+	cv2.putText(combo, f'{frame_counter} - {(frame_counter/args.fps):.2f}', (50,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
 	cv2.imshow('frame', combo)
 	if frame_counter % 1000 == 0:
 		print(f'Frame no.: {frame_counter}')
