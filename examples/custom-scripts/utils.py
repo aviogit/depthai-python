@@ -108,6 +108,7 @@ class wlsFilter:
 		return counter, filtered_disp, colored_disp
 
 def create_encoder(pipeline, source, profile_tuple, stream_name):
+	print(pipeline, source, profile_tuple, stream_name)
 	# Create an encoder, consuming the frames and encoding them using H.265 encoding
 	encoder = pipeline.createVideoEncoder()
 	w, h, fps, resolution = profile_tuple

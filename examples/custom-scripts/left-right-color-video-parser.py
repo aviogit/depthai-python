@@ -13,6 +13,8 @@ from argument_parser import define_boolean_argument, var2opt
 from colormaps import apply_colormap
 from globber import globber
 
+from optical_flow import optical_flow
+
 # Launch with:
 
 # /mnt/btrfs-data/venvs/ml-tutorials/repos/depthai-python/examples/custom-scripts/left-right-color-video-parser.py --prefix 2021-06-08-17-16-44 --rectright --no-disparity --no-wls-disparity --rect --mp4 --start-frame 2800
@@ -37,6 +39,7 @@ define_boolean_argument(parser, *var2opt('wls_disparity'), 'capture wls disparit
 define_boolean_argument(parser, *var2opt('rectright'), 'capture rectright instead of color stream', True)
 define_boolean_argument(parser, *var2opt('rect'), 'prepend the "rect" prefix to left and right to open rectleft and rectright instead of just left/right', False)
 define_boolean_argument(parser, *var2opt('mp4'), 'postpone the "mp4" suffix to file names to open .h265.mp4 files instead of just .h265 files', False)
+define_boolean_argument(parser, *var2opt('debug_optical_flow'), 'print what OpenCV optical flow is doing', False)
 args = parser.parse_args()
 
 print(f'Received arguments: {args}')
@@ -68,6 +71,10 @@ main_fn, depth_fn = globber(args.prefix, args.rectright, mp4_suffix)
 print(f'Found file(s): {main_fn} {depth_fn}')
 main_fn = main_fn[0]
 print(f'Opening main file: {main_fn}')
+
+if args.debug_optical_flow and False:
+	main_fn = '/mnt/btrfs-data/venvs/ml-tutorials/repos/depthai-python/examples/custom-scripts/optical-flow-example/slow_traffic_small.mp4'
+
 cap			= cv2.VideoCapture(f'{main_fn}')
 caplen			= int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
@@ -116,6 +123,10 @@ if args.start_frame != 0:
 
 frame_counter = args.start_frame
 
+if args.disparity or True:	# TODO: replace with args.optflow
+	optflow, optflow_img = None, None
+
+#print(f'Are main and disparity file opened? {cap.isOpened()} {depth_cap.isOpened()}')
 while cap.isOpened():
 	if args.disparity:
 		if not depth_cap.isOpened():
@@ -155,6 +166,15 @@ while cap.isOpened():
 
 	cframe_s = cv2.resize(cframe, small_size)
 	cframe_s = get_quarter_img(cframe_s, show_quarter_img)
+
+	if args.disparity or True:	# TODO: replace with args.optflow
+		if frame_counter >= 0:
+			if optflow is None:
+				optflow = optical_flow(cframe, debug=args.debug_optical_flow)
+			else:
+				optflow_img = optflow.do_opt_flow(cframe)
+		if optflow_img is not None:
+			cv2.imshow('optflow', optflow_img)
 
 	if args.disparity:
 		dframe_s = get_quarter_img(dframe, show_quarter_img)
