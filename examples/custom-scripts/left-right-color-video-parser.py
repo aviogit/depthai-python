@@ -3,6 +3,7 @@
 import sys
 import cv2
 import glob
+import math
 import argparse
 import datetime
 import numpy as np
@@ -40,6 +41,9 @@ define_boolean_argument(parser, *var2opt('rectright'), 'capture rectright instea
 define_boolean_argument(parser, *var2opt('rect'), 'prepend the "rect" prefix to left and right to open rectleft and rectright instead of just left/right', False)
 define_boolean_argument(parser, *var2opt('mp4'), 'postpone the "mp4" suffix to file names to open .h265.mp4 files instead of just .h265 files', False)
 define_boolean_argument(parser, *var2opt('debug_optical_flow'), 'print what OpenCV optical flow is doing', False)
+define_boolean_argument(parser, *var2opt('optical_flow'), 'enable optical flow on video', False)
+parser.add_argument('--optflow-displacement-px', default=5, type=int, help='when optical flow detect a displacement of more than n px, it\'s reset with a new keyframe')
+parser.add_argument('--optflow-min-kps', default=16, type=int, help='when optical flow detects less than n keypoints, it\'s reset with a new keyframe')
 args = parser.parse_args()
 
 print(f'Received arguments: {args}')
@@ -72,7 +76,7 @@ print(f'Found file(s): {main_fn} {depth_fn}')
 main_fn = main_fn[0]
 print(f'Opening main file: {main_fn}')
 
-if args.debug_optical_flow and False:
+if args.debug_optical_flow and args.optical_flow and False:
 	main_fn = '/mnt/btrfs-data/venvs/ml-tutorials/repos/depthai-python/examples/custom-scripts/optical-flow-example/slow_traffic_small.mp4'
 
 cap			= cv2.VideoCapture(f'{main_fn}')
@@ -123,7 +127,7 @@ if args.start_frame != 0:
 
 frame_counter = args.start_frame
 
-if args.disparity and False:	# TODO: replace with args.optflow
+if args.disparity and args.optical_flow:
 	optflow, optflow_img = None, None
 
 #print(f'Are main and disparity file opened? {cap.isOpened()} {depth_cap.isOpened()}')
@@ -167,12 +171,22 @@ while cap.isOpened():
 	cframe_s = cv2.resize(cframe, small_size)
 	cframe_s = get_quarter_img(cframe_s, show_quarter_img)
 
-	if args.disparity and False:	# TODO: replace with args.optflow
+	if args.disparity and args.optical_flow:
 		if frame_counter >= 0:
 			if optflow is None:
 				optflow = optical_flow(cframe, debug=args.debug_optical_flow)
 			else:
-				optflow_img = optflow.do_opt_flow(cframe)
+				optflow_img, optflow_err = optflow.do_opt_flow(cframe)
+				if optflow_err is not None:
+					err_square = np.sum(np.square(optflow_err))
+					scalar_err = np.sqrt(err_square)
+					avg_scalar_err = scalar_err / len(optflow_err)
+					print(f'{len(optflow_err) = } - {err_square = } - {scalar_err = } - {avg_scalar_err = }')
+				if avg_scalar_err >= args.optflow_displacement_px:
+					print(50*'-')
+					print(50*'-')
+					print(50*'-')
+					optflow = optical_flow(cframe, debug=args.debug_optical_flow)
 		if optflow_img is not None:
 			cv2.imshow('optflow', optflow_img)
 

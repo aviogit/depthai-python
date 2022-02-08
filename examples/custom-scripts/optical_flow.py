@@ -80,7 +80,7 @@ class optical_flow:
 			if self.fail_counter >= self.max_fail:
 				self.__init__(frame, debug=self.debug)
 
-			return None
+			return None, None
 	
 		# draw the tracks
 		for i, (new, old) in enumerate(zip(good_new, good_old)):
@@ -94,5 +94,5 @@ class optical_flow:
 		self.old_gray = frame_gray
 		self.p0 = good_new.reshape(-1, 1, 2)
 
-		return img
+		return img, err
 	
