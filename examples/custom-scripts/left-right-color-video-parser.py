@@ -14,7 +14,7 @@ from argument_parser import define_boolean_argument, var2opt
 from colormaps import apply_colormap
 from globber import globber
 
-from optical_flow import optical_flow
+from classes.optical_flow import optical_flow
 
 # Launch with:
 

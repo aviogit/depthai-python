@@ -11,10 +11,10 @@ import shlex
 
 from pathlib import Path
 
-from argument_parser import define_boolean_argument, var2opt
-from globber import globber
+from classes.argument_parser import define_boolean_argument, var2opt
+from classes.globber import globber
 
-from utils import wlsFilter
+from classes.utils import wlsFilter
 
 #debug = False
 

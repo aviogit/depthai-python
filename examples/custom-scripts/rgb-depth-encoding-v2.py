@@ -15,11 +15,11 @@ from pathlib import Path
 
 from datetime import datetime
 
-from argument_parser import argument_parser
+from classes.argument_parser import argument_parser
 
-from colormaps import apply_colormap
+from classes.colormaps import apply_colormap
 
-from utils import dequeue, dequeued_frames_dict, datetime_from_string, create_encoder, wlsFilter, compute_fps
+from classes.utils import dequeue, dequeued_frames_dict, datetime_from_string, create_encoder, wlsFilter, compute_fps
 
 import multiprocessing
 

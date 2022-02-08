@@ -7,9 +7,9 @@ import datetime
 import numpy as np
 from pathlib import Path
 
-from argument_parser import define_boolean_argument, var2opt
+from classes.argument_parser import define_boolean_argument, var2opt
 
-from utils import wlsFilter, apply_wls_filter
+from classes.utils import wlsFilter, apply_wls_filter
 
 import socket
 import pickle
