@@ -123,7 +123,7 @@ if args.start_frame != 0:
 
 frame_counter = args.start_frame
 
-if args.disparity or True:	# TODO: replace with args.optflow
+if args.disparity and False:	# TODO: replace with args.optflow
 	optflow, optflow_img = None, None
 
 #print(f'Are main and disparity file opened? {cap.isOpened()} {depth_cap.isOpened()}')
@@ -167,7 +167,7 @@ while cap.isOpened():
 	cframe_s = cv2.resize(cframe, small_size)
 	cframe_s = get_quarter_img(cframe_s, show_quarter_img)
 
-	if args.disparity or True:	# TODO: replace with args.optflow
+	if args.disparity and False:	# TODO: replace with args.optflow
 		if frame_counter >= 0:
 			if optflow is None:
 				optflow = optical_flow(cframe, debug=args.debug_optical_flow)
