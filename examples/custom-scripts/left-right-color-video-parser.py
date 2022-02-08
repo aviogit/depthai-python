@@ -9,12 +9,13 @@ import datetime
 import numpy as np
 from pathlib import Path
 
-from argument_parser import define_boolean_argument, var2opt
+from classes.argument_parser import define_boolean_argument, var2opt
 
-from colormaps import apply_colormap
-from globber import globber
+from classes.colormaps import apply_colormap
+from classes.globber import globber
 
 from classes.optical_flow import optical_flow
+from classes.video_writer import video_writer
 
 # Launch with:
 
@@ -129,6 +130,7 @@ frame_counter = args.start_frame
 
 if args.disparity and args.optical_flow:
 	optflow, optflow_img = None, None
+	optflow_video_writer = None
 
 #print(f'Are main and disparity file opened? {cap.isOpened()} {depth_cap.isOpened()}')
 while cap.isOpened():
@@ -173,8 +175,11 @@ while cap.isOpened():
 
 	if args.disparity and args.optical_flow:
 		if frame_counter >= 0:
+			print(type(cframe), cframe[85,85,2].shape, cframe[85,85,2])
 			if optflow is None:
 				optflow = optical_flow(cframe, debug=args.debug_optical_flow)
+				#optflow_video_writer = video_writer('temp-video-'+str(int(cframe[85,85,2]+cframe[86,86,2]+cframe[87,87,2]+cframe[88,88,2]+cframe[89,89,2]+cframe[90,90,2]+cframe[91,91,2]+cframe[92,92,2]))+'.mp4', cframe.shape, 15, debug=True)
+				optflow_video_writer = video_writer('temp-video-' + str(frame_counter).zfill(6) + '.mp4', cframe.shape, 15)
 			else:
 				optflow_img, optflow_err = optflow.do_opt_flow(cframe)
 				if optflow_err is not None:
@@ -187,6 +192,10 @@ while cap.isOpened():
 					print(50*'-')
 					print(50*'-')
 					optflow = optical_flow(cframe, debug=args.debug_optical_flow)
+					optflow_video_writer = video_writer('temp-video-frame-' + str(frame_counter).zfill(6) + f'-optflowerr-{avg_scalar_err:.2f}.mp4', cframe.shape, 15)
+					#optflow_video_writer = video_writer('temp-video-'+str(int(cframe[85,85,2]+cframe[86,86,2]+cframe[87,87,2]+cframe[88,88,2]+cframe[89,89,2]+cframe[90,90,2]+cframe[91,91,2]+cframe[92,92,2]))+'.mp4', cframe.shape, 15, debug=True)
+				else:
+					optflow_video_writer.write(cframe)
 		if optflow_img is not None:
 			cv2.imshow('optflow', optflow_img)
 
