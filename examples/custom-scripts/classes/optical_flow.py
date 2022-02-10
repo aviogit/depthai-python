@@ -87,7 +87,8 @@ class optical_flow:
 			a, b = new.ravel()
 			c, d = old.ravel()
 			self.mask = cv2.line(self.mask, (int(a), int(b)), (int(c), int(d)), self.color[i].tolist(), 2)
-			frame = cv2.circle(frame, (int(a), int(b)), 5, self.color[i].tolist(), -1)
+			img = frame.copy()
+			img = cv2.circle(img, (int(a), int(b)), 5, self.color[i].tolist(), -1)
 		img = cv2.add(frame, self.mask)
 	
 		# Now update the previous frame and previous points

@@ -76,6 +76,8 @@ main_fn, depth_fn = globber(args.prefix, args.rectright, mp4_suffix)
 print(f'Found file(s): {main_fn} {depth_fn}')
 main_fn = main_fn[0]
 print(f'Opening main file: {main_fn}')
+depth_fn = depth_fn[0]
+print(f'Opening depth file: {depth_fn}')
 
 if args.debug_optical_flow and args.optical_flow and False:
 	main_fn = '/mnt/btrfs-data/venvs/ml-tutorials/repos/depthai-python/examples/custom-scripts/optical-flow-example/slow_traffic_small.mp4'
@@ -130,7 +132,9 @@ frame_counter = args.start_frame
 
 if args.disparity and args.optical_flow:
 	optflow, optflow_img = None, None
-	optflow_video_writer = None
+	optflow_color_video_writer, optflow_depth_video_writer = None, None
+	optflow_color_fn_prefix = main_fn.replace(f'.h265{mp4_suffix}', '')  + '-chunk-'
+	optflow_depth_fn_prefix = depth_fn.replace(f'.h265{mp4_suffix}', '') + '-chunk-'
 
 #print(f'Are main and disparity file opened? {cap.isOpened()} {depth_cap.isOpened()}')
 while cap.isOpened():
@@ -175,29 +179,36 @@ while cap.isOpened():
 
 	if args.disparity and args.optical_flow:
 		if frame_counter >= 0:
-			print(type(cframe), cframe[85,85,2].shape, cframe[85,85,2])
+			#print(type(cframe), cframe[85,85,2].shape, cframe[85,85,2])
 			if optflow is None:
 				optflow = optical_flow(cframe, debug=args.debug_optical_flow)
-				#optflow_video_writer = video_writer('temp-video-'+str(int(cframe[85,85,2]+cframe[86,86,2]+cframe[87,87,2]+cframe[88,88,2]+cframe[89,89,2]+cframe[90,90,2]+cframe[91,91,2]+cframe[92,92,2]))+'.mp4', cframe.shape, 15, debug=True)
-				optflow_video_writer = video_writer('temp-video-' + str(frame_counter).zfill(6) + '.mp4', cframe.shape, 15)
+				optflow_color_video_writer = video_writer(optflow_color_fn_prefix + str(frame_counter).zfill(6) + '.mp4', cframe.shape, 15)
+				optflow_depth_video_writer = video_writer(optflow_depth_fn_prefix + str(frame_counter).zfill(6) + '.mp4', dframe.shape, 15)
 			else:
 				optflow_img, optflow_err = optflow.do_opt_flow(cframe)
 				if optflow_err is not None:
 					err_square = np.sum(np.square(optflow_err))
 					scalar_err = np.sqrt(err_square)
 					avg_scalar_err = scalar_err / len(optflow_err)
-					print(f'{len(optflow_err) = } - {err_square = } - {scalar_err = } - {avg_scalar_err = }')
+					if args.debug_optical_flow:
+						print(f'{len(optflow_err) = } - {err_square = } - {scalar_err = } - {avg_scalar_err = }')
 				if avg_scalar_err >= args.optflow_displacement_px:
 					print(50*'-')
 					print(50*'-')
 					print(50*'-')
+					if optflow_color_video_writer is not None:
+						optflow_color_video_writer.close()
+					if optflow_depth_video_writer is not None:
+						optflow_depth_video_writer.close()
 					optflow = optical_flow(cframe, debug=args.debug_optical_flow)
-					optflow_video_writer = video_writer('temp-video-frame-' + str(frame_counter).zfill(6) + f'-optflowerr-{avg_scalar_err:.2f}.mp4', cframe.shape, 15)
-					#optflow_video_writer = video_writer('temp-video-'+str(int(cframe[85,85,2]+cframe[86,86,2]+cframe[87,87,2]+cframe[88,88,2]+cframe[89,89,2]+cframe[90,90,2]+cframe[91,91,2]+cframe[92,92,2]))+'.mp4', cframe.shape, 15, debug=True)
+					optflow_color_video_writer = video_writer(optflow_color_fn_prefix + str(frame_counter).zfill(6) + f'-optflowerr-{avg_scalar_err:.2f}.mp4', cframe.shape, 15)
+					optflow_depth_video_writer = video_writer(optflow_depth_fn_prefix + str(frame_counter).zfill(6) + f'-optflowerr-{avg_scalar_err:.2f}.mp4', dframe.shape, 15)
 				else:
-					optflow_video_writer.write(cframe)
+					optflow_color_video_writer.write(cframe)
+					optflow_depth_video_writer.write(dframe)
 		if optflow_img is not None:
-			cv2.imshow('optflow', optflow_img)
+			optflow_img_preview = cv2.resize(optflow_img, small_size)
+			cv2.imshow('optflow', optflow_img_preview)
 
 	if args.disparity:
 		dframe_s = get_quarter_img(dframe, show_quarter_img)

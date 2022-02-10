@@ -36,7 +36,7 @@ class video_writer:
 
 		self.ffmpeg_prefix = f'ffmpeg -y -s '
 		self.ffmpeg_suffix = f' -pixel_format bgr24 -f rawvideo -r {self.fps} -i pipe: -vcodec {self.codec} -pix_fmt yuv420p -crf {self.crf} {self.out_fn}'
-		self.process = sp.Popen(shlex.split(f'{self.ffmpeg_prefix}{self.resolution[1]}x{self.resolution[0]}{self.ffmpeg_suffix}'), stdin=sp.PIPE)
+		self.process = sp.Popen(shlex.split(f'{self.ffmpeg_prefix}{self.resolution[1]}x{self.resolution[0]}{self.ffmpeg_suffix}'), stdin=sp.PIPE, stdout=None, stderr=None)
 	
 		return
 	
@@ -48,3 +48,12 @@ class video_writer:
 
 		return frame
 	
+	def close(self):
+		# Close and flush stdin
+		self.process.stdin.close()
+		# Wait for sub-process to finish
+		self.process.wait()
+		# Terminate the sub-process
+		self.process.terminate()
+
+		del self.process
