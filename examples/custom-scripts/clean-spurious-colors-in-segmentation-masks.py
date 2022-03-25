@@ -26,17 +26,21 @@ def clean_spurious_colors(fn, debug=False):
 	green_areas = (green >= 200) 
 	data[..., :-1][green_areas.T] = (0, 255, 0) # Transpose back needed
 
+	black_areas = (red <= 50) & (blue <= 50) & (green <= 50)
+	data[..., :-1][black_areas.T] = (0, 0, 0) # Transpose back needed
+
 	if debug:
 		print(data[..., :-1][red_areas.T][:10])
 		print(data[..., :-1][green_areas.T][:10])
+		print(data[..., :-1][black_areas.T][:10])
 	
+	im2 = Image.fromarray(data)
 	if debug:
-		im2 = Image.fromarray(data)
 		im2.show()
 
 	im2.save(f'{fn}-clean.png')
 
-lst = Path('.').glob(f'*.png-binarized.png')
+lst = Path('.').glob(f'*.png')
 for fn in lst:
 	print(fn)
 	clean_spurious_colors(fn)
