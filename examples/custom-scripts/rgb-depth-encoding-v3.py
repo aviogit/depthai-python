@@ -159,13 +159,15 @@ depth.setConfidenceThreshold(args.confidence)
 depth.setRectifyEdgeFillColor(0)	# Black, to better see the cutout from rectification (black stripe on the edges)
 depth.setLeftRightCheck(False)
 
-if args.wls_filter: #or args.rectified_right or args.rectified_left:
+if args.rectified_right or args.wls_filter:
 	xoutRectifiedRight = pipeline.createXLinkOut()
 	xoutRectifiedRight.setStreamName("rectifiedRight")
 	depth.rectifiedRight.link(xoutRectifiedRight.input)
 	xoutRectifiedLeft = pipeline.createXLinkOut()
 	xoutRectifiedLeft.setStreamName("rectifiedLeft")
 	depth.rectifiedLeft.link(xoutRectifiedLeft.input)
+
+if args.wls_filter: #or args.rectified_right or args.rectified_left:
 	if args.write_wls_preview:
 		wls_cap = cv2.VideoWriter(wls_outfn, cv2.VideoWriter.fourcc('M','J','P','G'), depth_fps, (depth_width, depth_height))
 		#cv2.VideoWriter_fourcc(*"MJPG"), 30,(640,480))
@@ -342,7 +344,7 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 	# Start pipeline
 	#device.startPipeline()
 
-	if args.wls_filter or args.show_preview:
+	if args.wls_filter or args.show_preview or args.rectified_right:
 		# Output queue will be used to get the rgb frames from the output defined above
 		q_dep  = device.getOutputQueue(name="disparity",	maxSize=30,	blocking=False)
 
@@ -355,8 +357,8 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 		q_265l = device.getOutputQueue(name="h265_left",	maxSize=30,	blocking=False)
 		q_265r = device.getOutputQueue(name="h265_right",	maxSize=30,	blocking=False)
 
+	q_rright	 = device.getOutputQueue(name="rectifiedRight",	maxSize=30,	blocking=False)
 	if args.wls_filter:
-		q_rright = device.getOutputQueue(name="rectifiedRight",	maxSize=30,	blocking=False)
 		q_rleft  = device.getOutputQueue(name="rectifiedLeft",	maxSize=30,	blocking=False)
 	if args.rectified_right:
 		q_265rr  = device.getOutputQueue(name="h265_rr",	maxSize=30,	blocking=False)
@@ -422,11 +424,14 @@ with dai.Device(pipeline, usb2Mode=args.force_usb2) as device:
 
 
 			disp_img = rr_img = colored_disp = None
-			if args.wls_filter:
+
+			if args.rectified_right or args.wls_filter:
 				in_rright = q_rright.get()
 				rr_img    = in_rright.getFrame()
-				#rr_img    = cv2.flip(rr_img, flipCode=1)
 				disp_img  = in_depth.getFrame()
+
+			if args.wls_filter:
+				#rr_img    = cv2.flip(rr_img, flipCode=1)
 				if args.preview_downscale_factor:
 					rr_img   = cv2.resize(rr_img,   dsize=(depth_width//args.preview_downscale_factor, depth_height//args.preview_downscale_factor), interpolation=cv2.INTER_CUBIC)
 					disp_img = cv2.resize(disp_img, dsize=(depth_width//args.preview_downscale_factor, depth_height//args.preview_downscale_factor), interpolation=cv2.INTER_CUBIC)
