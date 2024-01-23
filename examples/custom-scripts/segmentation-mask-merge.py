@@ -12,6 +12,8 @@ from classes.argument_parser import define_boolean_argument, var2opt
 # E.g. conversion for surface-pattern-recognition dataset:
 # /mnt/porcodiodo/cnr/depthai/depthai-python/examples/custom-scripts/segmentation-mask-change-color.py -dir `pwd` -class1 255,255,255-0,0,0 -class2 255,0,0-1,1,1 -class3 0,0,255-2,2,2 -class4 0,255,0-3,3,3 -class5 44,0,0-4,4,4 -class6 185,26,255-5,5,5 -class7 0,211,255-6,6,6 -class8 0,88,0-7,7,7 --no-dry-run --to-grayscale
 
+# e.g. ./segmentation-mask-merge.py -dir-out /tmp/seg-mask-merge -dir1 /mnt/data/unreal-engine/ue-projects/DataSeg/Saved/rgb -dir2 /mnt/data/unreal-engine/ue-projects/DataSeg/Saved/mask --no-dry-run
+
 def bitwise_or_but_img1_overwrites_img2(img1, img2, color):
 	# Performs betwise_or only after having converted one of the
 	# two masks to black & white colors (always RGB, no grayscale).
@@ -61,8 +63,6 @@ if not Path(args.dir2).exists():
 if Path(args.dir_out).exists():
 	print(f'Directory {args.dir_out} already exists. Exiting...')
 	sys.exit(1)
-else:
-	Path(args.dir_out).mkdir(parents=True, exist_ok=True)
 
 
 
@@ -88,13 +88,23 @@ print(f'Converting class masks in this way: {from_to = }')
 
 print(f'Dry run flag is: {args.dry_run}')
 
+flist = []
+
 for fn in search_path.glob('*.png'):
+	flist.append(fn)
+for fn in search_path.glob('*.jpg'):
+	flist.append(fn)
+for fn in search_path.glob('*.jpeg'):
+	flist.append(fn)
+
+for idx,fn in enumerate(flist):
 	print(f'Reading image {str(fn)}...')
 	img1  = cv2.imread(str(fn))
 	fn2 = str(fn).replace(f'{args.dir1}','')
 	if args.replace_from_suffix != '' and args.replace_to_suffix != '':
 		fn2 = str(fn2).replace(f'{args.replace_from_suffix}', f'{args.replace_to_suffix}')
-	fn2 = Path(args.dir2) / fn2
+	#print(f'{Path(args.dir2) = } - {args.dir2 = } - {Path(fn2).name = }')
+	fn2 = Path(args.dir2) / (str(Path(fn2).stem)+'.png')
 	print(f'Reading image {str(fn2)}...')
 	img2  = cv2.imread(str(fn2))
 
@@ -134,11 +144,14 @@ for fn in search_path.glob('*.png'):
 	cv2.waitKey(1)
 
 	if not args.dry_run:
+		if idx == 0:
+			print(f'Creating directory {args.dir_out}...')
+			Path(args.dir_out).mkdir(parents=True, exist_ok=True)
 		if args.to_grayscale:
 			img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 		out_fn = str(fn).replace(f'{args.dir1}', '')
 		if args.replace_from_suffix != '' and args.replace_to_suffix != '':
 			out_fn = str(out_fn).replace(f'{args.replace_from_suffix}', '.png')
-		out_fn = Path(args.dir_out) / out_fn
+		out_fn = Path(args.dir_out) / str(Path(out_fn).name)
 		print(f'Writing {"grayscale " if args.to_grayscale else ""}image {str(out_fn)}...')
 		cv2.imwrite(str(out_fn), img3)
